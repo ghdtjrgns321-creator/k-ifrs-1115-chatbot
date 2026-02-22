@@ -1,0 +1,26 @@
+[project]
+name = "k-ifrs-1115-chatbot"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "chromadb>=1.5.1",
+    "fastapi>=0.129.2",
+    "httpx>=0.28.1",
+    "langchain>=1.2.10",
+    "langchain-mcp-adapters>=0.2.1",
+    "langchain-upstage>=0.7.6",
+    "langgraph>=1.0.9",
+    "mcp>=1.26.0",
+    "python-dotenv>=1.2.1",
+    "streamlit>=1.54.0",
+    "uvicorn>=0.41.0",
+]
+
+[dependency-groups]
+dev = [
+    "langsmith>=0.7.6",
+    "pytest>=9.0.2",
+    "ruff>=0.15.2",
+]
