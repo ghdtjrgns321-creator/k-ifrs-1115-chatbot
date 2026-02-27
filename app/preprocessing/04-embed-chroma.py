@@ -68,21 +68,8 @@ def load_into_chroma():
         print(f"  -> {min(i + BATCH_SIZE, len(documents))} / {len(documents)} 청크 적재 완료")
 
     print("\n🎉 모든 K-IFRS 데이터가 ChromaDB에 성공적으로 적재되었습니다!")
-    
-    # ==========================================
-    # 4. 즉석 검색 테스트 (가중치 메타데이터 확인용)
-    # ==========================================
-    print("\n✨ [DB 적재 후 즉석 검색 테스트]")
-    
-    # 검색할 때는 내부적으로 'query' 모델이 자동으로 사용됩니다.
-    query = "변동대가와 환불부채를 어떻게 측정해야 해?"
-    results = vector_db.similarity_search(query, k=2)
-    
-    for idx, res in enumerate(results):
-        print(f"\n[Top {idx+1}] ID: {res.metadata.get('chunk_id')}")
-        print(f"▶ 카테고리: {res.metadata.get('category')} (가중치: {res.metadata.get('weight_score')})")
-        print(f"▶ 계층경로: {res.metadata.get('hierarchy')}")
-        print(f"▶ 본문내용: {res.page_content[:100]}...")
 
+# 이 블록이 없으면 `uv run`으로 실행해도 load_into_chroma()가 호출되지 않습니다.
+# 즉, "실행은 됐지만 아무것도 안 한" 상태가 됩니다.
 if __name__ == "__main__":
     load_into_chroma()
