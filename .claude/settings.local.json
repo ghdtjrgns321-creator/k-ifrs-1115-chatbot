@@ -7,7 +7,10 @@
       "WebFetch(domain:www.eesel.ai)",
       "WebFetch(domain:www.ksred.com)",
       "WebFetch(domain:docs.anthropic.com)",
-      "WebFetch(domain:www.kifrs.com)"
+      "WebFetch(domain:www.kifrs.com)",
+      "WebFetch(domain:www.upstage.ai)",
+      "WebFetch(domain:python.langchain.com)",
+      "WebFetch(domain:platform.openai.com)"
     ]
   }
 }
