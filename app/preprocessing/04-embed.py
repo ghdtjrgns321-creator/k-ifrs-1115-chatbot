@@ -31,7 +31,7 @@ def load_main_text_to_atlas_safe():
     collection = client[DB_NAME][COLLECTION_NAME]
     embeddings = UpstageEmbeddings(model="solar-embedding-1-large-passage")
 
-    # 🔥 기존 데이터 깔끔하게 다시 초기화
+    # 기존 데이터 깔끔하게 다시 초기화
     print(f"🧹 기존 데이터 삭제 중...")
     collection.delete_many({})
 
@@ -46,7 +46,7 @@ def load_main_text_to_atlas_safe():
     success_count = 0
     error_chunks = []
 
-    # 🌟 1개씩 보내면서 에러가 나도 멈추지 않고 다음으로 넘어갑니다.
+    # 1개씩 보내면서 에러가 나도 멈추지 않고 다음으로 넘어갑니다.
     for i, doc in enumerate(documents):
         try:
             vector_search.add_documents([doc])

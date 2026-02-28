@@ -134,8 +134,9 @@ def load_pdr_to_atlas():
     # ==========================================
     child_coll = db[CHILD_COLLECTION]
 
-    print(f"\n🧹 3. 기존 Child 컬렉션에서 'QnA 데이터만 핀셋 삭제' 합니다 (본문 1,297개 보호)...")
-    c_del_result = child_coll.delete_many({"parent_id": {"$exists": True}})
+    print(f"\n🧹 3. 기존 Child 컬렉션에서 'QnA 데이터만 핀셋 삭제' 합니다 (본문 + 감리사례 보호)...")
+    # parent_id가 "QNA-" 접두어인 것만 삭제 → 본문(parent_id 없음)과 감리사례(FSS-/KICPA-) 보호
+    c_del_result = child_coll.delete_many({"parent_id": {"$regex": "^QNA-"}})
     print(f"   -> 기존 QnA Child 데이터 {c_del_result.deleted_count}개 삭제 완료.")
 
     print(f"\n🚀 4. 총 {len(child_docs_to_embed)}개의 Child 청크(Q/A/S) 벡터 임베딩을 시작합니다...")
