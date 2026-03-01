@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     llm_model: str = "solar-pro3"
     llm_temperature: float = 0.0
 
-    # 5. 임베딩 모델 (passage/query 혼용 시 검색 품질 급락 — 절대 혼용 금지!)
-    # passage: 문서를 DB에 저장(적재)할 때 사용
+    # 5. 임베딩 모델 (passage/query 혼용 시 검색 품질 급락 — 혼용 금지)
+    # passage: 문서를 DB에 저장(적재)할 때 사용용
     # query:   사용자 검색어를 임베딩할 때 사용
     embed_passage_model: str = "solar-embedding-1-large-passage"
     embed_query_model: str = "solar-embedding-1-large-query"

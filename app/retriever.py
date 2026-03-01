@@ -2,94 +2,183 @@ from pymongo import MongoClient
 from langchain_upstage import UpstageEmbeddings
 from app.config import settings
 
-# 1. DB 및 컬렉션 연결
-client = MongoClient(settings.mongo_uri)
-db = client[settings.mongo_db_name]
-vector_coll = db["k-ifrs-1115-chatbot"]           # 메인 벡터 저장소
-qna_parents_coll = db["kifrs_1115_qna_parents"]   # QNA 전문
-findings_parents_coll = db["kifrs_1115_findings_parents"] # 감리사례 전문
+# ── 상수 ────────────────────────────────────────────────────────────────────────
+# embed 스크립트의 PARENT_COLLECTION과 반드시 일치해야 함
+QNA_PARENT_COLL      = "k-ifrs-1115-qna-parents"
+FINDINGS_PARENT_COLL = "k-ifrs-1115-findings-parents"
 
-# 2. 임베딩 모델 초기화
-embeddings = UpstageEmbeddings(
-    model="solar-embedding-1-large-passage",
-    upstage_api_key=settings.upstage_api_key
-)
+VECTOR_TOP_K = 20  # 각 전략별 후보 수 (RRF 융합 전 풀)
+RRF_K        = 60  # RRF 논문 권장값
 
-def get_parent_content(parent_id: str, source_type: str) -> str:
-    """PDR: 자식 청크의 parent_id를 가지고 부모 원문을 찾아옵니다."""
-    if not parent_id:
-        return ""
-    
-    if source_type == "QNA":
-        doc = qna_parents_coll.find_one({"_id": parent_id})
-    elif source_type == "감리사례":
-        doc = findings_parents_coll.find_one({"_id": parent_id})
-    else:
-        return ""
-        
-    return doc.get("full_content", doc.get("content", "")) if doc else ""
 
-def search_all(query: str, limit: int = 20) -> list[dict]:
-    """본문, QNA, 감리사례를 한 번에 검색하고 통합된 스키마로 반환합니다."""
-    
-    # 1. 질문을 벡터로 변환
-    query_vector = embeddings.embed_query(query)
-    
-    # 2. MongoDB Atlas Vector Search (필터 없이 크게 한 번만 당겨옵니다)
+# ── Lazy 초기화 ──────────────────────────────────────────────────────────────────
+# import 시 DB 연결을 하지 않고, 첫 번째 실제 검색 호출 시 한 번만 연결합니다.
+# 테스트 환경에서 .env 없이 모듈을 import해도 에러가 나지 않습니다.
+_db = None
+_embeddings = None
+
+
+def _get_db():
+    global _db
+    if _db is None:
+        client = MongoClient(settings.mongo_uri)
+        _db = client[settings.mongo_db_name]
+    return _db
+
+
+def _get_embeddings():
+    global _embeddings
+    if _embeddings is None:
+        # 검색 시에만 query 모델 사용 (passage 모델과 혼용 금지!)
+        _embeddings = UpstageEmbeddings(model=settings.embed_query_model)
+    return _embeddings
+
+
+# ── 개별 검색 함수 ───────────────────────────────────────────────────────────────
+
+def _search_vector(query_vector: list, limit: int) -> list[dict]:
+    """
+    Atlas Vector Search: 전체 컬렉션에서 의미 유사도 검색.
+    소스 분류(본문/QNA/감리사례)는 Python 후처리에서 수행합니다.
+    """
     pipeline = [
         {
             "$vectorSearch": {
-                "index": "vector_index", 
+                "index": "vector_index",
                 "path": "embedding",
                 "queryVector": query_vector,
                 "numCandidates": limit * 5,  # 넉넉하게 탐색
-                "limit": limit
+                "limit": limit,
             }
         },
-        {
-            "$project": {
-                "_id": 0,
-                "embedding": 0,
-                "score": {"$meta": "vectorSearchScore"} # 유사도 점수 추출
-            }
-        }
+        {"$project": {"embedding": 0, "score": {"$meta": "vectorSearchScore"}}},
     ]
-    
-    raw_results = list(vector_coll.aggregate(pipeline))
-    unified_results = []
-    
-    # 3. Python 단에서 소스 분류 및 스키마 통일 (라우팅)
-    for doc in raw_results:
-        metadata = doc.get("metadata", {})
-        parent_id = metadata.get("parent_id")
-        
-        # 소스 식별 로직
-        if parent_id and str(parent_id).startswith("QNA-"):
-            source = "QNA"
-        elif parent_id and (str(parent_id).startswith("FSS-") or str(parent_id).startswith("KICPA-")):
-            source = "감리사례"
-        else:
-            source = "본문"
-            
-        # PDR 구조에 따라 부모 원문 가져오기 (본문은 부모가 없으므로 빈 문자열)
-        full_content = get_parent_content(parent_id, source) if source != "본문" else doc.get("content", "")
-        
-        # 석훈님이 기획하신 통합 반환 구조
-        unified_doc = {
-            "source": source,
-            "chunk_id": metadata.get("chunk_id", ""),
-            "parent_id": parent_id,
-            "content": doc.get("content", ""),
-            "full_content": full_content,
-            "score": doc.get("score", 0.0),
-            "related_paragraphs": metadata.get("related_paragraphs", []),
-            "hierarchy": metadata.get("hierarchy", "")
-        }
-        unified_results.append(unified_doc)
-        
-    return unified_results
+    return list(_get_db()[settings.mongo_collection_name].aggregate(pipeline))
 
-# 간단한 테스트용 코드
+
+def _search_keyword(query: str, limit: int) -> list[dict]:
+    """
+    Atlas Search (BM25): 조항 번호·용어 등 키워드 정확도 검색.
+    벡터 검색이 놓치는 정확한 단어 매칭을 보완합니다.
+    """
+    pipeline = [
+        {
+            "$search": {
+                "index": "keyword_index",
+                "text": {"query": query, "path": "text"},
+            }
+        },
+        {"$limit": limit},
+        {"$project": {"embedding": 0, "score": {"$meta": "searchScore"}}},
+    ]
+    return list(_get_db()[settings.mongo_collection_name].aggregate(pipeline))
+
+
+# ── RRF 융합 ─────────────────────────────────────────────────────────────────────
+
+def _fuse_rrf(v_results: list[dict], k_results: list[dict], final_k: int) -> list[dict]:
+    """
+    RRF(Reciprocal Rank Fusion)로 벡터 + 키워드 결과를 융합하고
+    도메인 가중치(weight_score)를 곱해 최종 순위를 결정합니다.
+
+    RRF 공식: score = 1 / (rank + 1 + k)  → 상위일수록 점수 높음
+    최종 공식: final_score = rrf_score * weight_score
+    두 전략 모두에서 발견된 청크는 점수가 합산되어 순위가 크게 올라갑니다.
+    """
+    fused: dict[str, dict] = {}
+
+    for rank, doc in enumerate(v_results):
+        chunk_id = doc.get("chunk_id", f"v_{rank}")
+        fused[chunk_id] = {
+            "doc": doc,
+            "rrf_score": 1.0 / (rank + 1 + RRF_K),
+        }
+
+    for rank, doc in enumerate(k_results):
+        chunk_id = doc.get("chunk_id", f"k_{rank}")
+        rrf = 1.0 / (rank + 1 + RRF_K)
+        if chunk_id in fused:
+            # 두 전략 모두 발견 → 점수 합산 (핵심 RRF 효과)
+            fused[chunk_id]["rrf_score"] += rrf
+        else:
+            fused[chunk_id] = {"doc": doc, "rrf_score": rrf}
+
+    # 도메인 가중치 보정 후 정렬
+    ranked = []
+    for data in fused.values():
+        weight = float(data["doc"].get("weight_score", 1.0))
+        ranked.append({**data, "final_score": data["rrf_score"] * weight})
+
+    ranked.sort(key=lambda x: x["final_score"], reverse=True)
+    return [item["doc"] for item in ranked[:final_k]]
+
+
+# ── PDR Lookup ───────────────────────────────────────────────────────────────────
+
+def _classify_source(parent_id: str | None) -> str:
+    """parent_id 접두어로 문서 출처를 결정합니다."""
+    if not parent_id:
+        return "본문"
+    if str(parent_id).startswith("QNA-"):
+        return "QNA"
+    if str(parent_id).startswith(("FSS-", "KICPA-")):
+        return "감리사례"
+    return "본문"
+
+
+def _get_parent_content(parent_id: str, source: str) -> str:
+    """PDR 패턴: Child 청크의 parent_id로 부모 원문 전체를 조회합니다."""
+    db = _get_db()
+    if source == "QNA":
+        doc = db[QNA_PARENT_COLL].find_one({"_id": parent_id})
+    elif source == "감리사례":
+        doc = db[FINDINGS_PARENT_COLL].find_one({"_id": parent_id})
+    else:
+        return ""
+    return doc.get("content", "") if doc else ""
+
+
+# ── 메인 검색 함수 ───────────────────────────────────────────────────────────────
+
+def search_all(query: str, limit: int = 5) -> list[dict]:
+    """
+    본문 + QNA + 감리사례를 한 번에 하이브리드 검색하고 통합 스키마로 반환합니다.
+
+    흐름:
+      1. Vector Search  → 의미 유사도 기반 후보 VECTOR_TOP_K개
+      2. Keyword Search → BM25 키워드 정확도 기반 후보 VECTOR_TOP_K개
+      3. RRF 융합       → 두 결과를 합산하고 도메인 가중치 보정 후 limit개 추출
+      4. PDR Lookup     → QNA/감리사례는 parent 원문을 추가 조회
+    """
+    query_vector = _get_embeddings().embed_query(query)
+
+    v_results = _search_vector(query_vector, VECTOR_TOP_K)
+    k_results = _search_keyword(query, VECTOR_TOP_K)
+    fused_docs = _fuse_rrf(v_results, k_results, final_k=limit)
+
+    results = []
+    for doc in fused_docs:
+        parent_id = doc.get("parent_id")
+        source    = _classify_source(parent_id)
+
+        # LangChain MongoDBAtlasVectorSearch는 page_content를 "text" 필드로 저장함
+        results.append({
+            "source":             source,
+            "chunk_id":           doc.get("chunk_id", ""),
+            "parent_id":          parent_id,
+            "category":           doc.get("category", ""),    # reranker 룰 1 (카테고리 선호도)용
+            "chunk_type":         doc.get("chunk_type", ""),  # reranker 룰 2 (Q/A/S 선호도)용
+            "content":            doc.get("text", ""),
+            "full_content":       _get_parent_content(parent_id, source) if source != "본문" else "",
+            "score":              doc.get("score", 0.0),
+            "related_paragraphs": doc.get("related_paragraphs", []),
+            "hierarchy":          doc.get("hierarchy", ""),
+        })
+
+    return results
+
+
+# ── 간단한 테스트 ─────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     query = "밀어내기 매출 수익인식 어떻게 해?"
     results = search_all(query, limit=5)

@@ -2,6 +2,7 @@ import sys
 import json
 import time
 import re
+import os
 from pymongo import MongoClient
 from langchain_upstage import UpstageEmbeddings
 from langchain_mongodb import MongoDBAtlasVectorSearch
@@ -13,7 +14,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 # ── 상수 ────────────────────────────────────────────────────────────────────────
 INPUT_FILE        = "data/findings/findings-final.json"
 CHILD_COLLECTION  = settings.mongo_collection_name  # 본문/QNA와 동일 컬렉션
-PARENT_COLLECTION = "kifrs_1115_findings_parents"   # 전문 보기 전용 (벡터 검색 제외)
+PARENT_COLLECTION = "k-ifrs-1115-findings-parents"   # 전문 보기 전용 (벡터 검색 제외)
 FINDINGS_WEIGHT   = 1.0   # 감리사례는 가중치 미적용 (요구사항)
 
 

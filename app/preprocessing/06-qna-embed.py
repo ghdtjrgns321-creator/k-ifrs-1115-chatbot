@@ -3,6 +3,7 @@ import json
 import time
 import re
 import unicodedata
+import os
 from pymongo import MongoClient
 from langchain_upstage import UpstageEmbeddings
 from langchain_mongodb import MongoDBAtlasVectorSearch
@@ -12,7 +13,7 @@ from app.config import settings
 sys.stdout.reconfigure(encoding="utf-8")
 
 CHILD_COLLECTION  = settings.mongo_collection_name
-PARENT_COLLECTION = "kifrs_1115_qna_parents"  # QNA 원본 전용 컬렉션
+PARENT_COLLECTION = "k-ifrs-1115-qna-parents"  # QNA 원본 전용 컬렉션
 
 import re
 
