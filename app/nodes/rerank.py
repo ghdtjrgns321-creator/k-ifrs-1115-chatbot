@@ -4,7 +4,7 @@ from app.reranker import rerank_results
 
 
 def rerank_docs(state: RAGState):
-    """1차 검색된 문서들을 Upstage Reranker와 비즈니스 룰로 재정렬합니다."""
+    """1차 검색된 문서들을 Cohere Reranker와 비즈니스 룰로 재정렬합니다."""
 
     query = state["standalone_query"]
     retrieved_docs = state.get("retrieved_docs", [])

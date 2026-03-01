@@ -16,6 +16,8 @@ dependencies = [
     "beautifulsoup4>=4.14.3",
     "pymongo>=4.16.0",
     "langchain-mongodb>=0.11.0",
+    "langchain-openai>=0.3.0",
+    "cohere>=5.0.0",
 ]
 
 [dependency-groups]

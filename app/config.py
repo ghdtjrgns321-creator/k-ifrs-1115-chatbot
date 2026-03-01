@@ -8,7 +8,9 @@ class Settings(BaseSettings):
     mongo_collection_name: str = "k-ifrs-1115-chatbot"
 
     # 2. API 키 (필수)
-    upstage_api_key: str
+    upstage_api_key: str  # 임베딩 전용
+    openai_api_key: str   # LLM 전용 (gpt-4o-mini)
+    cohere_api_key: str   # Reranker 전용 (rerank-multilingual-v3.0)
 
     # 3. LangSmith 모니터링 설정 (선택사항)
     langchain_api_key: str | None = None
@@ -16,7 +18,7 @@ class Settings(BaseSettings):
     langchain_project: str = "k-ifrs-1115-chatbot"
 
     # 4. LLM 모델 설정
-    llm_model: str = "solar-pro3"
+    llm_model: str = "gpt-4o-mini"
     llm_temperature: float = 0.0
     # API 응답 대기 최대 시간(초) — 초과 시 TimeoutError 발생하여 파이프라인이 뻗지 않음
     llm_timeout: int = 60

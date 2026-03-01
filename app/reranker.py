@@ -1,42 +1,37 @@
-import requests
+import cohere
 from app.config import settings
 
 # Reranker 점수가 이 값 미만이면 쿼리와 무관한 문서로 간주하고 제거합니다.
 # 가중치 보정으로 저품질 문서가 살아나는 것을 방지하는 안전망입니다.
 RERANK_THRESHOLD = 0.1
 
+# 한국어 문서에 최적화된 Cohere 다국어 Reranker 모델
+COHERE_RERANK_MODEL = "rerank-multilingual-v3.0"
+
 
 def rerank_results(query: str, unified_results: list[dict], top_n: int = 5) -> list[dict]:
-    """Upstage Reranker를 호출하고, 실무 비즈니스 룰(페널티)을 적용하여 최종 정렬합니다."""
+    """Cohere Reranker를 호출하고, 실무 비즈니스 룰(페널티)을 적용하여 최종 정렬합니다."""
 
     if not unified_results:
         return []
 
-    # 1. Upstage Reranker API 호출
-    url = "https://api.upstage.ai/v1/solar/rerank"
-    headers = {
-        "Authorization": f"Bearer {settings.upstage_api_key}",
-        "Content-Type": "application/json",
-    }
+    # 1. Cohere Reranker API 호출
+    co = cohere.ClientV2(api_key=settings.cohere_api_key)
 
     # Reranker에는 자식 청크의 내용(content)만 보냅니다.
-    passages = [{"text": doc["content"]} for doc in unified_results]
+    documents = [doc["content"] for doc in unified_results]
 
-    payload = {
-        "model": "solar-rerank-1",
-        "query": query,
-        "passages": passages,
-    }
-
-    response = requests.post(url, headers=headers, json=payload, timeout=30)
-    response.raise_for_status()  # 4xx/5xx 오류 시 즉시 예외 발생 (조용히 넘기지 않음)
-
-    rerank_data = response.json().get("data", [])
+    response = co.rerank(
+        model=COHERE_RERANK_MODEL,
+        query=query,
+        documents=documents,
+        # 비즈니스 룰 적용을 위해 전체 결과를 받고, 이후 top_n으로 자릅니다.
+        top_n=len(unified_results),
+    )
 
     # API 결과를 기존 딕셔너리에 매핑
-    for item in rerank_data:
-        idx = item["index"]
-        unified_results[idx]["rerank_score"] = item["relevance_score"]
+    for item in response.results:
+        unified_results[item.index]["rerank_score"] = item.relevance_score
 
     # 2. 맞춤형 비즈니스 룰 적용 (하이브리드 스코어링)
     for doc in unified_results:
