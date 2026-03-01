@@ -1,16 +1,9 @@
 import sys
-import os
-from dotenv import load_dotenv
 from pymongo import MongoClient
 from langchain_upstage import UpstageEmbeddings
+from app.config import settings
 
 sys.stdout.reconfigure(encoding="utf-8")
-load_dotenv()
-
-# ── 환경변수 ──────────────────────────────────────────────────────────────────
-MONGO_URI = os.getenv("MONGO_URI")
-DB_NAME = os.getenv("MONGO_DB_NAME", "kifrs_db")
-COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME", "k-ifrs-1115-chatbot")
 
 # ── 검색 파라미터 상수 ─────────────────────────────────────────────────────────
 VECTOR_TOP_K = 10   # 각 전략별 후보 수
@@ -210,12 +203,12 @@ def analyze_comparison(
 
 def run_tests():
     print("🔍 본문 전용 하이브리드 검색 테스트 (3전략 비교)\n")
-    print(f"  DB: {DB_NAME} / 컬렉션: {COLLECTION_NAME}")
+    print(f"  DB: {settings.mongo_db_name} / 컬렉션: {settings.mongo_collection_name}")
     print(f"  각 전략 Top-{VECTOR_TOP_K} → 최종 Top-{FINAL_TOP_K} 출력\n")
 
-    embeddings = UpstageEmbeddings(model="solar-embedding-1-large-query")
-    client = MongoClient(MONGO_URI)
-    collection = client[DB_NAME][COLLECTION_NAME]
+    embeddings = UpstageEmbeddings(model=settings.embed_query_model)
+    client = MongoClient(settings.mongo_uri)
+    collection = client[settings.mongo_db_name][settings.mongo_collection_name]
 
     total = collection.count_documents({})
     body_only = collection.count_documents({"parent_id": {"$exists": False}})

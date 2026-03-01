@@ -1,17 +1,13 @@
 import sys
-import os
 from collections import Counter
-from dotenv import load_dotenv
 from pymongo import MongoClient
 from langchain_upstage import UpstageEmbeddings
+from app.config import settings
 
 sys.stdout.reconfigure(encoding="utf-8")
-load_dotenv()
 
 # ── 상수 ──────────────────────────────────────────────────────────────────────
-MONGO_URI = os.getenv("MONGO_URI")
-DB_NAME = os.getenv("MONGO_DB_NAME", "kifrs_db")
-CHILD_COLLECTION = os.getenv("MONGO_COLLECTION_NAME", "k-ifrs-1115-chatbot")
+CHILD_COLLECTION  = settings.mongo_collection_name
 PARENT_COLLECTION = "kifrs_1115_qna_parents"  # PDR 원본 저장소
 
 VECTOR_TOP_K = 10  # 각 전략별 후보 수
@@ -258,8 +254,8 @@ def analyze_and_print(
 # ── 메인 실행 ──────────────────────────────────────────────────────────────────
 
 def run_qna_tests():
-    client = MongoClient(MONGO_URI)
-    db = client[DB_NAME]
+    client = MongoClient(settings.mongo_uri)
+    db = client[settings.mongo_db_name]
     child_coll = db[CHILD_COLLECTION]
     parent_coll = db[PARENT_COLLECTION]
 
@@ -268,7 +264,7 @@ def run_qna_tests():
     total_parents = parent_coll.count_documents({})
 
     print("🔍 QNA 검색 테스트 (PDR 패턴 검증)\n")
-    print(f"  DB: {DB_NAME}")
+    print(f"  DB: {settings.mongo_db_name}")
     print(f"  Child 컬렉션({CHILD_COLLECTION}): QNA 청크 {total_children}개")
     print(f"  Parent 컬렉션({PARENT_COLLECTION}): 원본 {total_parents}개")
 
@@ -296,7 +292,7 @@ def run_qna_tests():
         print(f"    {cat}: {cnt}개")
 
     print()
-    embeddings = UpstageEmbeddings(model="solar-embedding-1-large-query")
+    embeddings = UpstageEmbeddings(model=settings.embed_query_model)
 
     for idx, query in enumerate(TEST_QUERIES):
         # 3전략 검색

@@ -1,24 +1,18 @@
 import sys
 import json
-import os
 import time
 import re
 import unicodedata
-from dotenv import load_dotenv
-
-sys.stdout.reconfigure(encoding="utf-8")
 from pymongo import MongoClient
 from langchain_upstage import UpstageEmbeddings
 from langchain_mongodb import MongoDBAtlasVectorSearch
 from langchain_core.documents import Document
+from app.config import settings
 
-# 환경 변수 로드
-load_dotenv()
+sys.stdout.reconfigure(encoding="utf-8")
 
-MONGO_URI = os.getenv("MONGO_URI")
-DB_NAME = os.getenv("MONGO_DB_NAME", "kifrs_db")
-CHILD_COLLECTION = os.getenv("MONGO_COLLECTION_NAME", "k-ifrs-1115-chatbot")
-PARENT_COLLECTION = "kifrs_1115_qna_parents" # 신규 Parent 컬렉션
+CHILD_COLLECTION  = settings.mongo_collection_name
+PARENT_COLLECTION = "kifrs_1115_qna_parents"  # QNA 원본 전용 컬렉션
 
 import re
 
@@ -93,8 +87,8 @@ def load_pdr_to_atlas():
     with open(INPUT_FILE, "r", encoding="utf-8") as f:
         raw_qnas = json.load(f)
 
-    client = MongoClient(MONGO_URI)
-    db = client[DB_NAME]
+    client = MongoClient(settings.mongo_uri)
+    db = client[settings.mongo_db_name]
     
     parent_docs_to_insert = []
     child_docs_to_embed = []
@@ -141,7 +135,7 @@ def load_pdr_to_atlas():
 
     print(f"\n🚀 4. 총 {len(child_docs_to_embed)}개의 Child 청크(Q/A/S) 벡터 임베딩을 시작합니다...")
     
-    embeddings = UpstageEmbeddings(model="solar-embedding-1-large-passage")
+    embeddings = UpstageEmbeddings(model=settings.embed_passage_model)
     vector_search = MongoDBAtlasVectorSearch(
         collection=child_coll,
         embedding=embeddings,

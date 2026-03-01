@@ -1,23 +1,19 @@
 import sys
 import json
-import os
 import time
 import re
-from dotenv import load_dotenv
 from pymongo import MongoClient
 from langchain_upstage import UpstageEmbeddings
 from langchain_mongodb import MongoDBAtlasVectorSearch
 from langchain_core.documents import Document
+from app.config import settings
 
 sys.stdout.reconfigure(encoding="utf-8")
-load_dotenv()
 
 # ── 상수 ────────────────────────────────────────────────────────────────────────
 INPUT_FILE        = "data/findings/findings-final.json"
-MONGO_URI         = os.getenv("MONGO_URI")
-DB_NAME           = os.getenv("MONGO_DB_NAME", "kifrs_db")
-CHILD_COLLECTION  = os.getenv("MONGO_COLLECTION_NAME", "k-ifrs-1115-chatbot")  # 본문/QNA와 동일 컬렉션
-PARENT_COLLECTION = "kifrs_1115_findings_parents"  # 전문 보기 전용 (벡터 검색 제외)
+CHILD_COLLECTION  = settings.mongo_collection_name  # 본문/QNA와 동일 컬렉션
+PARENT_COLLECTION = "kifrs_1115_findings_parents"   # 전문 보기 전용 (벡터 검색 제외)
 FINDINGS_WEIGHT   = 1.0   # 감리사례는 가중치 미적용 (요구사항)
 
 
@@ -96,8 +92,8 @@ def load_findings_to_atlas():
     with open(INPUT_FILE, "r", encoding="utf-8") as f:
         raw_findings = json.load(f)
 
-    client = MongoClient(MONGO_URI)
-    db = client[DB_NAME]
+    client = MongoClient(settings.mongo_uri)
+    db = client[settings.mongo_db_name]
 
     parent_docs = []
     child_docs  = []
@@ -144,7 +140,7 @@ def load_findings_to_atlas():
     # ── STEP 3. 벡터 임베딩 & 적재 ─────────────────────────────────────────────
     print(f"\n🚀 4. 총 {len(child_docs)}개 Child 청크(Q/A/S) 벡터 임베딩을 시작합니다...")
 
-    embeddings = UpstageEmbeddings(model="solar-embedding-1-large-passage")
+    embeddings = UpstageEmbeddings(model=settings.embed_passage_model)
     vector_search = MongoDBAtlasVectorSearch(
         collection=child_coll,
         embedding=embeddings,

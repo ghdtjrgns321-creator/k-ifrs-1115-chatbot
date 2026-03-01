@@ -1,17 +1,10 @@
 import json
-import os
 import time
-from dotenv import load_dotenv
 from pymongo import MongoClient
 from langchain_upstage import UpstageEmbeddings
 from langchain_mongodb import MongoDBAtlasVectorSearch
 from langchain_core.documents import Document
-
-load_dotenv()
-
-MONGO_URI = os.getenv("MONGO_URI")
-DB_NAME = os.getenv("MONGO_DB_NAME", "kifrs_db")
-COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME", "k-ifrs-1115-chatbot")
+from app.config import settings
 
 def load_main_text_to_atlas_safe():
     INPUT_FILE = "data/web/kifrs-1115-chunks.json"
@@ -27,9 +20,9 @@ def load_main_text_to_atlas_safe():
         contextual_text = f"[문맥: {hierarchy_context}]\n{chunk['content']}"
         documents.append(Document(page_content=contextual_text, metadata=metadata))
 
-    client = MongoClient(MONGO_URI)
-    collection = client[DB_NAME][COLLECTION_NAME]
-    embeddings = UpstageEmbeddings(model="solar-embedding-1-large-passage")
+    client = MongoClient(settings.mongo_uri)
+    collection = client[settings.mongo_db_name][settings.mongo_collection_name]
+    embeddings = UpstageEmbeddings(model=settings.embed_passage_model)
 
     # 기존 데이터 깔끔하게 다시 초기화
     print(f"🧹 기존 데이터 삭제 중...")
