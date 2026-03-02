@@ -132,7 +132,7 @@ def run(cases: list):
         sep()
         p(f"[{idx+1:02d}/{len(cases)}] {question}")
         sep()
-        p("  ⏳ 그래프 실행 중...", end=" ", flush=True)
+        p("  그래프 실행 중...", end=" ", flush=True)
 
         t0 = time.time()
         try:
@@ -159,16 +159,16 @@ def run(cases: list):
         answer   = result.get("answer", "")
         sources  = result.get("cited_sources", [])
 
-        p(f"\n🔀 라우팅: {routing} (예상: {expected_routing})")
+        p(f"\n라우팅: {routing} (예상: {expected_routing})")
         if sq:
-            p(f"📝 독립형: {sq}")
+            p(f"독립형: {sq}")
 
         p("\n📦 단계별 문서:")
         print_docs("retrieve", result.get("retrieved_docs", []))
         print_docs("rerank  ", result.get("reranked_docs",  []))
         print_docs("grade   ", result.get("relevant_docs",  []))
 
-        p(f"\n💬 답변 앞 350자:")
+        p(f"\n답변 앞 350자:")
         p(answer[:350])
         if len(answer) > 350:
             p(f"  ... (총 {len(answer)}자)")
@@ -195,7 +195,7 @@ def run(cases: list):
 
     sep()
     p(f"  결과: {passed}/{len(cases)} 통과")
-    p("  🎉 전체 통과!" if passed == len(cases) else "  ⚠️  일부 실패")
+    p("  전체 통과!" if passed == len(cases) else "  ⚠️  일부 실패")
     sep()
 
 

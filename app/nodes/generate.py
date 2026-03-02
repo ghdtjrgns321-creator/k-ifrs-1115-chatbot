@@ -1,4 +1,3 @@
-# app/nodes/generate.py
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from app.llm import get_llm
@@ -7,7 +6,7 @@ from app.prompts import GENERATE_PROMPT
 
 
 def generate_answer(state: RAGState):
-    """최종 필터링된 문서를 바탕으로 환각 없는 정확한 회계 답변을 생성합니다."""
+    """최종 필터링된 문서를 바탕으로 환각 없는 정확한 회계 답변을 생성"""
 
     docs = state.get("relevant_docs", [])
 

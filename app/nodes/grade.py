@@ -1,4 +1,3 @@
-# app/nodes/grade.py
 from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
 from app.llm import get_llm
@@ -16,7 +15,7 @@ class GradeResult(BaseModel):
 
 
 def grade_docs(state: RAGState):
-    """리랭크된 문서들이 질문에 대답할 수 있는지 평가하여 relevant_docs를 걸러냅니다."""
+    """리랭크된 문서들이 질문에 대답할 수 있는지 평가하여 relevant_docs를 걸러냄"""
 
     reranked_docs = state.get("reranked_docs", [])
     if not reranked_docs:

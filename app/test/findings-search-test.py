@@ -185,7 +185,7 @@ def analyze_and_print(
         for i in ranked_all[:3]
     ]
 
-    print("\n📊 [전략 비교]")
+    print("\n[전략 비교]")
     print(f"  Vector Only Top3:  {', '.join(v_top3) if v_top3 else '결과 없음'}")
     print(f"  Keyword Only Top3: {', '.join(k_top3) if k_top3 else '결과 없음'}")
     print(f"  Hybrid Top3:       {', '.join(h_top3) if h_top3 else '결과 없음'}")
@@ -203,10 +203,10 @@ def analyze_and_print(
     k_ids = {d.get("chunk_id") for d in k_results}
     overlap = v_ids & k_ids
     overlap_ratio = len(overlap) / max(len(v_ids), 1) * 100
-    print(f"\n🔗 [RRF 융합]  Vector ∩ Keyword 겹침: {len(overlap)}/{len(v_ids)}개 ({overlap_ratio:.0f}%)")
+    print(f"\n[RRF 융합]  Vector ∩ Keyword 겹침: {len(overlap)}/{len(v_ids)}개 ({overlap_ratio:.0f}%)")
 
     # ── PDR Lookup: 원본 전체 출력 (요약 + 전문 보기 시뮬레이션) ──────────────
-    print(f"\n📄 [감리사례 검색 결과 — Top {FINAL_TOP_K}]")
+    print(f"\n[감리사례 검색 결과 — Top {FINAL_TOP_K}]")
 
     for rank, item in enumerate(deduped):
         doc    = item["doc"]
@@ -240,7 +240,7 @@ def analyze_and_print(
     all_pids = [item["doc"].get("parent_id") for item in ranked_all[:10]]
     dup_pids = [pid for pid, cnt in Counter(all_pids).items() if cnt > 1]
     if dup_pids:
-        print(f"\n🔄 [Parent 중복 감지 — dedup 처리됨]")
+        print(f"\n[Parent 중복 감지 — dedup 처리됨]")
         for pid in dup_pids:
             chunks = [
                 f"{i['doc'].get('chunk_type')}({i['doc'].get('chunk_id')})"
@@ -263,7 +263,7 @@ def run_findings_tests():
     )
     total_parents = parent_coll.count_documents({})
 
-    print("🔍 감리지적사례 검색 테스트 (PDR 패턴 검증)\n")
+    print("감리지적사례 검색 테스트 (PDR 패턴 검증)\n")
     print(f"  DB: {settings.mongo_db_name}")
     print(f"  Child 컬렉션({CHILD_COLLECTION}): findings 청크 {total_children}개")
     print(f"  Parent 컬렉션({PARENT_COLLECTION}): 원본 {total_parents}개")

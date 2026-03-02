@@ -8,14 +8,22 @@
 #   Section 3 (Edge Case)  → rerank + grade: 복잡한 케이스에서 핵심 조항을 골라내는지
 #   Section 4 (Warning)    → generate + format: 🚨경고 / 💡넛지가 발동하는지
 #   Section 5 (OOD)        → analyze_query: 범위 밖 질문을 문전박대하는지
+import json
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from pathlib import Path
+
+# LLM 체인 1회 실행의 최대 허용 시간 (초)
+# 벡터검색 + 리랭커 + LLM 생성 전 단계 합산 기준
+CASE_TIMEOUT_SEC = 90
 
 sys.path.insert(0, str(Path(__file__).parents[2]))
 sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
 
 from app.graph import rag_graph  # noqa: E402
+from app.config import settings  # noqa: E402
+from openai import OpenAI  # noqa: E402
 
 
 # ── 공통 헬퍼 ─────────────────────────────────────────────────────────────────
@@ -32,17 +40,25 @@ def sep2(char="─", n=62):
     p(char * n)
 
 def _invoke(messages: list) -> dict:
-    """그래프에 메시지 리스트를 넣고 최종 상태를 반환합니다."""
+    """
+    그래프에 메시지 리스트를 넣고 최종 상태를 반환합니다.
+
+    messages: [("human", "질문"), ("ai", "이전 답변"), ...] 형태의 tuple 리스트.
+              LangGraph의 add_messages reducer가 HumanMessage/AIMessage 로 자동 변환합니다.
+
+    초기 상태의 각 필드는 반드시 RAGState 스키마와 동일해야 합니다.
+    새 필드 추가 시 이 딕셔너리에도 빈 초기값을 함께 추가하세요.
+    """
     return rag_graph.invoke({
         "messages":         messages,
-        "routing":          "",
-        "standalone_query": "",
-        "retry_count":      0,
-        "retrieved_docs":   [],
-        "reranked_docs":    [],
-        "relevant_docs":    [],
-        "answer":           "",
-        "cited_sources":    [],
+        "routing":          "",   # → analyze_query 노드가 "IN"/"OUT"으로 채움
+        "standalone_query": "",   # → analyze_query 노드가 독립형 질문으로 채움
+        "retry_count":      0,    # → rewrite_query 노드가 1씩 증가 (최대 1회)
+        "retrieved_docs":   [],   # → retrieve 노드가 Hybrid Search 결과로 채움
+        "reranked_docs":    [],   # → rerank 노드가 Cohere Reranker 결과로 채움
+        "relevant_docs":    [],   # → grade_docs 노드가 CRAG 통과 문서로 채움
+        "answer":           "",   # → generate → format_response 노드가 최종 답변으로 채움
+        "cited_sources":    [],   # → generate 노드가 인용 출처 메타데이터로 채움
     })
 
 def _check(label: str, condition: bool, detail: str = "") -> bool:
@@ -63,6 +79,85 @@ def _all_in(text: str, terms: list[str]) -> tuple[bool, list[str]]:
     missing = [t for t in terms if t not in text]
     return len(missing) == 0, missing
 
+def _partial_all_in(text: str, terms: list[str]) -> tuple[bool, list[str]]:
+    """
+    terms 모두가 text에 포함되는지 확인합니다.
+    정확 매칭 실패 시 앞 2글자(어간) partial 매칭으로 재시도합니다.
+
+    왜 partial 매칭이 필요한가?
+    LLM은 동일 개념을 "접근권" / "접근 권리" / "접근형 라이선스" 등
+    다양하게 표현합니다. 정확 매칭만 쓰면 오탐(false negative)이 발생합니다.
+    stem 2글자는 한국어 핵심 어절을 커버하는 최소 단위입니다.
+
+    예: "접근권" → 정확 매칭 실패 → "접근" (stem) → 포함 여부 재확인
+    """
+    missing = []
+    for t in terms:
+        # 1차: 정확 매칭
+        if t in text:
+            continue
+        # 2차: 어간 앞 2글자 partial 매칭 (3글자 미만 term은 정확 매칭만)
+        stem = t[:2] if len(t) >= 3 else t
+        if stem not in text:
+            missing.append(t)
+    return len(missing) == 0, missing
+
+
+# ── LLM-as-a-Judge ─────────────────────────────────────────────────────────
+# gpt-4o-mini를 '채점관'으로 호출하여 의미(Semantic) 기반 평가를 수행합니다.
+# String Matching은 LLM 출력의 비결정성과 상충하므로,
+# "핵심 개념이 포함되었는가"를 LLM이 직접 판단하게 합니다.
+#
+# 비용: gpt-4o-mini 1회 호출 ≈ $0.0003 (입력 500토큰 + 출력 50토큰 기준)
+# 속도: ~0.5초 (메인 파이프라인 대비 무시할 수준)
+# ────────────────────────────────────────────────────────────────────────────
+
+# Lazy 초기화 — 첫 호출 시에만 OpenAI 클라이언트 생성
+_judge_client: OpenAI | None = None
+
+def _get_judge_client() -> OpenAI:
+    global _judge_client
+    if _judge_client is None:
+        _judge_client = OpenAI(api_key=settings.openai_api_key)
+    return _judge_client
+
+
+def _judge_semantic(text: str, criteria: str) -> tuple[bool, str]:
+    """
+    gpt-4o-mini에게 text가 criteria를 충족하는지 묻고 (pass, reason)을 반환합니다.
+
+    text:     평가 대상 (standalone_query 또는 최종 answer)
+    criteria: 한국어로 작성된 평가 기준
+              예) "이 질문이 '라이선스 접근권의 회계처리'를 묻고 있는가?"
+
+    반환값:
+      pass_   — True/False
+      reason  — 채점관이 남긴 1줄 근거 (디버깅용 출력)
+    """
+    response = _get_judge_client().chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0,
+        response_format={"type": "json_object"},
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "당신은 테스트 채점관입니다. "
+                    "아래 [평가 기준]에 따라 [평가 대상]을 판정하세요.\n"
+                    "반드시 JSON으로만 응답하세요: "
+                    '{\"pass\": true 또는 false, \"reason\": \"1줄 근거\"}'
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"[평가 기준]\n{criteria}\n\n[평가 대상]\n{text}",
+            },
+        ],
+    )
+    result = json.loads(response.choices[0].message.content)
+    return bool(result.get("pass", False)), result.get("reason", "")
+
+
 def _run_case(label: str, messages: list, checks_fn) -> bool:
     """
     단일 케이스를 실행하고 checks_fn 으로 pass/fail 판정합니다.
@@ -74,7 +169,14 @@ def _run_case(label: str, messages: list, checks_fn) -> bool:
     p("     ⏳ 실행 중...", end=" ")
     t0 = time.time()
     try:
-        result = _invoke(messages)
+        # ThreadPoolExecutor로 별도 스레드에서 실행 → CASE_TIMEOUT_SEC 초과 시 강제 종료
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_invoke, messages)
+            result = future.result(timeout=CASE_TIMEOUT_SEC)
+    except FuturesTimeoutError:
+        elapsed = time.time() - t0
+        p(f"\n     ⏰ 타임아웃 ({elapsed:.0f}초 / 허용: {CASE_TIMEOUT_SEC}초)")
+        return False
     except Exception as e:
         p(f"\n     ❌ 오류: {type(e).__name__}: {e}")
         return False
@@ -100,7 +202,7 @@ def _run_case(label: str, messages: list, checks_fn) -> bool:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Section 1: 🤬 "개떡같이 질문하기" (Vague & Slang Test)
+# Section 1: Vague & Slang Test
 # 검증 노드: analyze_query
 # 검증 목표:
 #   1. 은어/비속어/오타가 섞여도 K-IFRS 관련이면 → 라우팅 "IN" (거절 없음)
@@ -138,10 +240,11 @@ SLANG_CASES = [
 
 def run_section1() -> int:
     sep()
-    p("  Section 1 | 🤬 개떡같이 질문하기 (Vague & Slang Test)")
+    p("  Section 1 | Vague & Slang Test")
     p("  검증: 은어·비속어·오타 → 라우팅 IN + 거절 메시지 없는 실제 답변 생성")
     sep()
     passed = 0
+    failed = []  # 실패한 케이스 label을 모아 마지막에 출력
     for label, question in SLANG_CASES:
         def checks(result, routing, sq, answer):
             ok = True
@@ -155,13 +258,17 @@ def run_section1() -> int:
             return ok
         if _run_case(label, [("human", question)], checks):
             passed += 1
+        else:
+            failed.append(label)
     sep2()
     p(f"  Section 1 결과: {passed}/{len(SLANG_CASES)}")
+    if failed:
+        p(f"  ❌ 실패 케이스: {', '.join(failed)}")
     return passed
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Section 2: 🕵️ "그거 어떻게 해?" (Multi-turn & Pronoun Test)
+# Section 2: Multi-turn & Pronoun Test
 # 검증 노드: analyze_query
 # 검증 목표: 대명사("그럼", "이런 경우") → 이전 대화 문맥을 흡수한 독립형 질문으로 재구성
 # ══════════════════════════════════════════════════════════════════════════════
@@ -180,7 +287,7 @@ _TURN1_SAAS_AI = (
     "각각 독립 수행의무인지 판단해야 합니다."
 )
 
-# (라벨, 전체 메시지 리스트, 독립형 쿼리에 모두 포함되어야 할 문맥 키워드)
+# (라벨, 전체 메시지 리스트, 채점 기준 — LLM-as-a-Judge가 의미 평가에 사용)
 MULTITURN_CASES = [
     (
         "대명사 '그럼' → 라이선스 접근권으로 해소",
@@ -189,8 +296,9 @@ MULTITURN_CASES = [
             _TURN1_LICENSE_AI,
             ("human", "그럼 접근권일 때는 어떻게 회계처리해?"),
         ],
-        # standalone_query에 이 두 단어가 모두 있어야 "문맥 해소"로 판정
-        ["라이선스", "접근권"],
+        # 채점 기준: standalone_query가 이전 문맥(라이선스 + 접근권)을 반영했는가?
+        "이 질문이 '라이선스의 접근권(access right) 유형에 대한 회계처리'를 묻고 있는가? "
+        "대명사('그럼')가 해소되어 라이선스와 접근권 개념이 질문 자체에 포함되어야 한다.",
     ),
     (
         "대명사 '이런 경우' → SaaS 수행의무 분리로 해소",
@@ -199,88 +307,100 @@ MULTITURN_CASES = [
             _TURN1_SAAS_AI,
             ("human", "이런 경우 수행의무 분리 기준이 뭐야?"),
         ],
-        ["수행의무", "구별"],
+        # 채점 기준: '이런 경우'가 해소되어 소프트웨어+구현서비스 맥락이 포함되었는가?
+        # 판정 기준을 구체화하여 Judge의 비결정성을 줄임
+        "원래 사용자는 '이런 경우 수행의무 분리 기준이 뭐야?'라고만 물었다. "
+        "재작성된 이 질문에 '소프트웨어(또는 구독권)'와 '구현 서비스(또는 서비스)'가 "
+        "구체적으로 언급되어 있으면 대명사가 성공적으로 해소된 것이므로 pass이다.",
     ),
 ]
 
 
 def run_section2() -> int:
     sep()
-    p("  Section 2 | 🕵️  그거 어떻게 해? (Multi-turn & Pronoun Test)")
+    p("  Section 2 | Multi-turn & Pronoun Test")
     p("  검증: 대명사 질문 → analyze_query가 이전 문맥 흡수해 완결된 standalone_query 생성")
     sep()
     passed = 0
-    for label, messages, context_terms in MULTITURN_CASES:
-        def checks(result, routing, sq, answer, _terms=context_terms):
+    failed = []  # 실패한 케이스 label을 모아 마지막에 출력
+    for label, messages, judge_criteria in MULTITURN_CASES:
+        def checks(result, routing, sq, answer, _criteria=judge_criteria):
             ok = True
             ok &= _check("라우팅 IN", routing == "IN", routing)
-            all_found, missing = _all_in(sq, _terms)
-            ok &= _check(
-                f"대명사 해소 — 독립형에 {_terms} 모두 포함",
-                all_found,
-                f"누락: {missing}" if missing else "전부 포함됨",
-            )
+            # LLM-as-a-Judge: standalone_query가 이전 문맥을 의미적으로 반영했는지 판정
+            judge_pass, reason = _judge_semantic(sq, _criteria)
+            ok &= _check("대명사 해소 (LLM Judge)", judge_pass, reason)
             return ok
         if _run_case(label, messages, checks):
             passed += 1
+        else:
+            failed.append(label)
     sep2()
     p(f"  Section 2 결과: {passed}/{len(MULTITURN_CASES)}")
+    if failed:
+        p(f"  ❌ 실패 케이스: {', '.join(failed)}")
     return passed
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Section 3: 💣 "회계사도 헷갈리는 함정 파기" (Edge Case Test)
+# Section 3: Edge Case Test
 # 검증 노드: rerank + grade (CRAG)
 # 검증 목표: 결론도출근거(BC)·적용지침(B) 조항 활용 + 핵심 키워드 포함 답변
 # ══════════════════════════════════════════════════════════════════════════════
 
+# (라벨, 질문, 채점 기준 — LLM-as-a-Judge가 답변 품질을 의미 평가)
 EDGE_CASES = [
     (
         "백화점 수수료 매장 본인/대리인 (통제권 기준)",
         "백화점 수수료 매장인데, 우리가 본인이야 대리인이야? 통제권 기준으로 설명해 줘.",
-        ["본인", "대리인", "통제"],
+        "답변이 '본인 vs 대리인 판단'을 다루고 있으며, "
+        "그 판단 기준으로 '통제권(고객에게 이전 전 재화·용역을 통제하는지)'을 설명하고 있는가?",
     ),
     (
         "라이선스 + 지속 업데이트 — 수행의무 1개 vs 2개",
         "라이선스를 줬는데, 우리가 계속 업데이트를 해줘야 돼. 이거 수행의무 하나야, 두 개야?",
-        ["수행의무", "라이선스"],
+        "답변이 '라이선스 제공'과 '업데이트 제공'이 각각 별도의 수행의무인지, "
+        "아니면 하나의 수행의무인지를 판단하는 내용을 담고 있는가?",
     ),
     (
         "소프트웨어 + 1년 무상 유지보수 수익 분리",
         "소프트웨어 팔면서 1년 무상 유지보수 끼워팔았어. 이거 수익 분리해야 돼?",
-        ["수행의무", "유지보수"],
+        "답변이 '소프트웨어 판매'와 '유지보수 서비스'를 별도 수행의무로 분리해야 하는지, "
+        "그리고 그 판단 근거(구별 기준)를 설명하고 있는가?",
     ),
 ]
 
 
 def run_section3() -> int:
     sep()
-    p("  Section 3 | 💣 회계사도 헷갈리는 함정 파기 (Edge Case Test)")
+    p("  Section 3 | Edge Case Test")
     p("  검증: rerank + grade가 노이즈 제거 후 핵심 조항 기반 답변을 생성하는지")
     sep()
     passed = 0
-    for label, question, answer_terms in EDGE_CASES:
-        def checks(result, routing, sq, answer, _terms=answer_terms):
+    failed = []  # 실패한 케이스 label을 모아 마지막에 출력
+    for label, question, judge_criteria in EDGE_CASES:
+        def checks(result, routing, sq, answer, _criteria=judge_criteria):
             ok = True
             ok &= _check("라우팅 IN", routing == "IN", routing)
             rel = result.get("relevant_docs", [])
             ok &= _check("관련 문서 1개 이상 통과", len(rel) > 0, f"{len(rel)}개")
-            found, matched = _any_in(answer, _terms)
-            ok &= _check(
-                f"답변에 핵심 키워드 포함 {_terms}",
-                found,
-                f"'{matched}' 발견" if found else "없음",
-            )
+            # LLM-as-a-Judge: 답변이 핵심 개념을 의미적으로 커버하는지 판정
+            judge_pass, reason = _judge_semantic(answer, _criteria)
+            ok &= _check("답변 품질 (LLM Judge)", judge_pass, reason)
             return ok
         if _run_case(label, [("human", question)], checks):
             passed += 1
+        else:
+            failed.append(label)
     sep2()
     p(f"  Section 3 결과: {passed}/{len(EDGE_CASES)}")
+    if failed:
+        p(f"  ❌ 실패 케이스: {', '.join(failed)}")
     return passed
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Section 4: 🚨 "감방 가기 딱 좋은 사례 찌르기" (Nudge & Warning Test)
+# Section 4: Nudge & Warning Test
 # 검증 노드:
 #   generate_answer → 감리사례 문서 포함 시 🚨 경고 추가 (상황 A: 직접 경고)
 #   format_response → 관련 문단-감리DB 매칭 시 💡 넛지 추가 (상황 B: 섀도우 넛지)
@@ -301,14 +421,33 @@ WARNING_CASES = [
 
 def run_section4() -> int:
     sep()
-    p("  Section 4 | 🚨 감방 가기 딱 좋은 사례 찌르기 (Nudge & Warning Test)")
+    p("  Section 4 Nudge & Warning Test")
     p("  검증: [상황A] 🚨 감리사례 경고 OR [상황B] 💡 섀도우 넛지 중 하나 이상 발동")
     sep()
     passed = 0
+    failed = []  # 실패한 케이스 label을 모아 마지막에 출력
     for label, question in WARNING_CASES:
         def checks(result, routing, sq, answer):
             ok = True
             ok &= _check("라우팅 IN", routing == "IN", routing)
+
+            # ── 진단 정보 출력 ──────────────────────────────────────────────────
+            # format_response의 💡 넛지는 아래 3단계가 모두 충족될 때만 발동합니다:
+            #   1. cited_sources에 source=="본문" 항목이 존재
+            #   2. 해당 항목의 related_paragraphs 가 비어있지 않음
+            #   3. MongoDB findings_parent 컬렉션에 그 문단번호와 매칭되는 감리사례 존재
+            # 이 진단 로그로 어느 단계에서 멈췄는지 즉시 파악할 수 있습니다.
+            cited = result.get("cited_sources", [])
+            main_srcs = [s for s in cited if s.get("source") == "본문"]
+            has_paragraphs = any(s.get("related_paragraphs") for s in main_srcs)
+            p(f"     🔍 진단: cited_sources={len(cited)}개 | "
+              f"본문소스={len(main_srcs)}개 | "
+              f"related_paragraphs 존재={has_paragraphs}")
+            if main_srcs:
+                # 어떤 문단 번호들이 섀도우 매칭 대상인지 출력
+                all_paras = [p_num for s in main_srcs for p_num in s.get("related_paragraphs", [])]
+                p(f"     🔍 매칭 대상 문단: {all_paras if all_paras else '없음'}")
+            # ────────────────────────────────────────────────────────────────────
 
             # [상황 A]: generate_answer가 감리사례 docs 기반 🚨 경고를 답변에 삽입
             has_warning = "🚨" in answer
@@ -328,13 +467,17 @@ def run_section4() -> int:
             return ok
         if _run_case(label, [("human", question)], checks):
             passed += 1
+        else:
+            failed.append(label)
     sep2()
     p(f"  Section 4 결과: {passed}/{len(WARNING_CASES)}")
+    if failed:
+        p(f"  ❌ 실패 케이스: {', '.join(failed)}")
     return passed
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Section 5: 🛑 "철벽 방어 테스트" (Out-of-Domain Test)
+# Section 5: Out-of-Domain Test
 # 검증 노드: analyze_query
 # 검증 목표: K-IFRS 1115 무관 질문 → 검색 없이 즉시 OUT 라우팅
 # 포함: Jailbreak 시도 (시스템 프롬프트 탈취 시도)
@@ -358,10 +501,11 @@ OOD_CASES = [
 
 def run_section5() -> int:
     sep()
-    p("  Section 5 | 🛑 철벽 방어 테스트 (Out-of-Domain Test)")
+    p("  Section 5 Out-of-Domain Test")
     p("  검증: K-IFRS 1115 무관 / Jailbreak → 검색 없이 즉시 OUT 라우팅")
     sep()
     passed = 0
+    failed = []  # 실패한 케이스 label을 모아 마지막에 출력
     for label, question in OOD_CASES:
         def checks(result, routing, sq, answer):
             ok = True
@@ -372,8 +516,12 @@ def run_section5() -> int:
             return ok
         if _run_case(label, [("human", question)], checks):
             passed += 1
+        else:
+            failed.append(label)
     sep2()
     p(f"  Section 5 결과: {passed}/{len(OOD_CASES)}")
+    if failed:
+        p(f"  ❌ 실패 케이스: {', '.join(failed)}")
     return passed
 
 
@@ -421,3 +569,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
