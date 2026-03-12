@@ -12,7 +12,6 @@ import re
 import streamlit as st
 
 from app.domain.topic_content_map import (
-    PARA_SECTION_INDEX,
     get_desc_for_para,
     get_section_for_para,
 )
@@ -93,6 +92,7 @@ def _desc_blockquote(desc: str) -> None:
     if not desc:
         return
     import html as _html
+
     # 마크다운 볼드 → HTML strong
     _d = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", _html.escape(desc))
     # 한국어 문장 종결 뒤 줄바꿈
@@ -100,9 +100,9 @@ def _desc_blockquote(desc: str) -> None:
     _d = _d.replace("\n", "<br>")
     st.markdown(
         f'<div style="line-height:1.75; color:#475569; font-size:0.88em; '
-        f'padding:0.5rem 0.75rem; background:#f8fafc; '
+        f"padding:0.5rem 0.75rem; background:#f8fafc; "
         f'border-left:2px solid #cbd5e1; border-radius:2px;">'
-        f'{_d}</div>',
+        f"{_d}</div>",
         unsafe_allow_html=True,
     )
 
@@ -151,6 +151,7 @@ def _regroup_by_section(
 def _get_section_paras(sec_title: str) -> list[str]:
     """섹션 제목으로 topics.json에 등록된 모든 문단 번호를 수집합니다."""
     from app.domain.topic_content_map import _expand_range, TOPIC_CONTENT_MAP
+
     for topic in TOPIC_CONTENT_MAP.values():
         for sec in topic.get("main_and_bc", {}).get("sections", []):
             if sec.get("title") == sec_title:
@@ -182,17 +183,22 @@ def _fill_missing_docs(
         pn = doc.get("paraNum", "")
         if pn and pn not in existing:
             existing.add(pn)
-            new_items.append((900 + len(new_items), {
-                "source": doc.get("category", ""),
-                "hierarchy": doc.get("hierarchy", ""),
-                "title": doc.get("title", ""),
-                "content": doc.get("content", "") or doc.get("text", ""),
-                "full_content": doc.get("content", "") or doc.get("text", ""),
-                "chunk_id": doc.get("chunk_id", ""),
-                "paraNum": pn,
-                "metadata": doc.get("metadata") or {},
-                "score": 0.0,
-            }))
+            new_items.append(
+                (
+                    900 + len(new_items),
+                    {
+                        "source": doc.get("category", ""),
+                        "hierarchy": doc.get("hierarchy", ""),
+                        "title": doc.get("title", ""),
+                        "content": doc.get("content", "") or doc.get("text", ""),
+                        "full_content": doc.get("content", "") or doc.get("text", ""),
+                        "chunk_id": doc.get("chunk_id", ""),
+                        "paraNum": pn,
+                        "metadata": doc.get("metadata") or {},
+                        "score": 0.0,
+                    },
+                )
+            )
 
     # 문단번호 순 정렬
     return sorted(new_items, key=lambda x: _para_sort_key(x[1]))
@@ -210,9 +216,7 @@ def _build_para_label(items: list[tuple[int, dict]]) -> str:
     return "[" + ", ".join(f"문단 {p}" for p in paras) + "]"
 
 
-def _render_section_expander(
-    sec_title: str, items: list[tuple[int, dict]]
-) -> None:
+def _render_section_expander(sec_title: str, items: list[tuple[int, dict]]) -> None:
     """섹션별 expander + desc blockquote + 누락 문단 보충 렌더링."""
     # topics.json에 등록된 문단 중 빠진 것 보충
     items = _fill_missing_docs(sec_title, items)
@@ -310,9 +314,9 @@ def _render_topic_grouped_docs(
         for doc in score_ordered:
             candidate, _ = _extract_topic_key(doc)
             if candidate and candidate in grouped:
-                group_score_sum[candidate] = (
-                    group_score_sum.get(candidate, 0.0) + doc.get("score", 0.0)
-                )
+                group_score_sum[candidate] = group_score_sum.get(
+                    candidate, 0.0
+                ) + doc.get("score", 0.0)
         if search_query and group_score_sum:
             kws = [
                 w for w in re.sub(r"[^\w]", " ", search_query).split() if len(w) >= 2

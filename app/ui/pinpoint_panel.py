@@ -47,7 +47,11 @@ def _build_para_index() -> dict[str, dict]:
     for topic_key, topic_data in TOPIC_CONTENT_MAP.items():
         display = topic_data.get("display_name", topic_key)
         for sec in topic_data.get("main_and_bc", {}).get("sections", []):
-            info = {"topic": display, "title": sec.get("title", ""), "desc": sec.get("desc", "")}
+            info = {
+                "topic": display,
+                "title": sec.get("title", ""),
+                "desc": sec.get("desc", ""),
+            }
             for p in sec.get("paras", []):
                 for expanded in _expand_para_range(p):
                     _para_to_section[expanded] = info
@@ -82,6 +86,7 @@ def _extract_answer_paragraphs(answer: str) -> list[str]:
 
 # ── 메인 렌더 함수 ────────────────────────────────────────────────────────────
 
+
 def render_pinpoint_topics(topic_keys: list[str]) -> None:
     """AI 답변 기반 근거 패널을 렌더링합니다."""
     _DOC_IDX["counter"] = 4000
@@ -102,6 +107,7 @@ def render_pinpoint_topics(topic_keys: list[str]) -> None:
 
 # ── 본문 렌더링 ──────────────────────────────────────────────────────────────
 
+
 def _render_answer_paragraphs(ai_answer: str) -> None:
     """AI 답변에서 인용된 문단을 섹션별로 그룹핑하여 렌더링합니다."""
     para_nums = _extract_answer_paragraphs(ai_answer)
@@ -111,7 +117,6 @@ def _render_answer_paragraphs(ai_answer: str) -> None:
     idx = _build_para_index()
 
     # DB에서 문단 문서 조회
-    chunk_ids = tuple(f"1115-{p}" for p in para_nums)
     raw_docs = fetch_docs_by_para_ids(tuple(para_nums))
     docs_map = {doc.get("chunk_id", ""): doc for doc in raw_docs}
 
@@ -148,9 +153,9 @@ def _render_answer_paragraphs(ai_answer: str) -> None:
                 formatted = _format_desc_html(desc)
                 st.markdown(
                     f'<div style="line-height:1.75; color:#475569; font-size:0.85em; '
-                    f'padding:0.5rem 0.75rem; margin-bottom:0.5rem; background:#f8fafc; '
+                    f"padding:0.5rem 0.75rem; margin-bottom:0.5rem; background:#f8fafc; "
                     f'border-left:3px solid #60a5fa; border-radius:4px;">'
-                    f'{formatted}</div>',
+                    f"{formatted}</div>",
                     unsafe_allow_html=True,
                 )
             for doc in group["docs"]:
@@ -165,6 +170,7 @@ def _render_answer_paragraphs(ai_answer: str) -> None:
 
 # ── 적용사례(IE) 렌더링 ──────────────────────────────────────────────────────
 
+
 def _render_matched_ie(query_vector: list[float]) -> None:
     """서머리 매칭된 IE 적용사례를 렌더링합니다."""
     matched = match_ie_by_summary(query_vector)
@@ -175,21 +181,21 @@ def _render_matched_ie(query_vector: list[float]) -> None:
         for case in matched:
             st.markdown(
                 f'<div style="display:inline-block; background:#e0e7ff; '
-                f'padding:0.15em 0.6em; border-radius:4px; '
-                f'font-weight:600; color:#1e3a5f; font-size:0.82em; '
+                f"padding:0.15em 0.6em; border-radius:4px; "
+                f"font-weight:600; color:#1e3a5f; font-size:0.82em; "
                 f'margin:0.3rem 0 0.2rem;">'
-                f'{html.escape(case["title"])}  '
+                f"{html.escape(case['title'])}  "
                 f'<span style="font-weight:400; color:#64748b;">({html.escape(case["topic"])})</span>'
-                f'</div>',
+                f"</div>",
                 unsafe_allow_html=True,
             )
             if case["desc"]:
                 formatted = _format_desc_html(case["desc"])
                 st.markdown(
                     f'<div style="line-height:1.75; color:#475569; font-size:0.85em; '
-                    f'padding:0.5rem 0.75rem; margin-bottom:0.5rem; background:#f8fafc; '
+                    f"padding:0.5rem 0.75rem; margin-bottom:0.5rem; background:#f8fafc; "
                     f'border-left:3px solid #60a5fa; border-radius:4px;">'
-                    f'{formatted}</div>',
+                    f"{formatted}</div>",
                     unsafe_allow_html=True,
                 )
             ie_docs = _fetch_ie_docs_by_range(case["para_range"])
@@ -198,6 +204,7 @@ def _render_matched_ie(query_vector: list[float]) -> None:
 
 
 # ── QNA 렌더링 ───────────────────────────────────────────────────────────────
+
 
 def _render_matched_qna(query_vector: list[float]) -> None:
     """서머리 매칭된 QNA를 렌더링합니다."""
@@ -219,6 +226,7 @@ def _render_matched_qna(query_vector: list[float]) -> None:
 
 # ── 감리사례 렌더링 ──────────────────────────────────────────────────────────
 
+
 def _render_matched_findings(query_vector: list[float]) -> None:
     """서머리 매칭된 감리사례를 렌더링합니다."""
     matched = match_findings_by_summary(query_vector)
@@ -239,6 +247,7 @@ def _render_matched_findings(query_vector: list[float]) -> None:
 
 
 # ── 공통 헬퍼 ─────────────────────────────────────────────────────────────────
+
 
 def _fetch_ie_docs_by_range(para_range: str) -> list[dict]:
     """para_range(예: 'IE19~IE24')에 해당하는 IE 문서를 조회합니다."""
@@ -273,8 +282,8 @@ def _render_doc_inline(doc: dict) -> None:
     if title:
         st.markdown(
             f'<div style="display:inline-block; background:#e0e7ff; '
-            f'padding:0.15em 0.6em; border-radius:4px; '
-            f'font-weight:600; color:#1e3a5f; font-size:0.82em; '
+            f"padding:0.15em 0.6em; border-radius:4px; "
+            f"font-weight:600; color:#1e3a5f; font-size:0.82em; "
             f'margin:0.3rem 0 0.2rem;">{html.escape(title)}</div>',
             unsafe_allow_html=True,
         )
@@ -287,9 +296,7 @@ def _render_doc_inline(doc: dict) -> None:
     _render_para_chips(normalized, title or "doc", doc_index, self_ids)
 
     if hierarchy:
-        st.html(
-            f'<div class="source-footer">📍 {html.escape(_esc(hierarchy))}</div>'
-        )
+        st.html(f'<div class="source-footer">📍 {html.escape(_esc(hierarchy))}</div>')
 
     st.markdown(
         '<hr style="border:none; border-top:1px solid #e5e7eb; margin:0.25rem 0 0.5rem;">',

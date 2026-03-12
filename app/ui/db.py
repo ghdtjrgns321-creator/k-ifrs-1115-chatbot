@@ -41,6 +41,7 @@ def _get_mongo_db():
 def _get_mongo_collection():
     """메인 컬렉션(본문 + child 청크)을 반환합니다."""
     from app.config import settings
+
     return _get_mongo_db()[settings.mongo_collection_name]
 
 
@@ -88,6 +89,7 @@ def _fetch_para_from_db(para_num: str) -> dict | None:
         # st.error()를 쓰면 @st.cache_data 안에서 에러 메시지가 캐시에 "녹음"되어
         # TTL(300초) 동안 매번 재생됩니다. logging만 남기고 조용히 None 반환.
         import logging
+
         logging.warning("_fetch_para_from_db(%s) 오류: %s", para_num, e)
         return None
 
@@ -112,9 +114,7 @@ def _expand_para_range(raw_num: str) -> list[str]:
 
         # 소수점 하위번호 범위: 한129.1~5 → ["한129.1", ..., "한129.5"]
         # prefix+base.start ~ end (끝에 base 없이 하위번호만)
-        m_dot = re.match(
-            rf"^({_PFX})(\d+)\.(\d+)[~～∼\-](\d+)$", cleaned
-        )
+        m_dot = re.match(rf"^({_PFX})(\d+)\.(\d+)[~～∼\-](\d+)$", cleaned)
         if m_dot:
             prefix = m_dot.group(1)
             base = m_dot.group(2)
@@ -125,9 +125,7 @@ def _expand_para_range(raw_num: str) -> list[str]:
 
         # 접미사 없음→접미사 있음 범위: B63~B63B → ["B63", "B63A", "B63B"]
         # 시작은 숫자로 끝나고, 끝은 같은 접두사+숫자+알파벳 접미사
-        m_no_to_alpha = re.match(
-            rf"^({_PFX})(\d+)[~～∼\-]\1\2([A-Za-z])$", cleaned
-        )
+        m_no_to_alpha = re.match(rf"^({_PFX})(\d+)[~～∼\-]\1\2([A-Za-z])$", cleaned)
         if m_no_to_alpha:
             prefix = m_no_to_alpha.group(1)
             num = m_no_to_alpha.group(2)
@@ -135,15 +133,12 @@ def _expand_para_range(raw_num: str) -> list[str]:
             # 원본(접미사 없음) + A부터 end_ch까지
             result = [f"{prefix}{num}"]
             result.extend(
-                f"{prefix}{num}{chr(c)}"
-                for c in range(ord("A"), ord(end_ch) + 1)
+                f"{prefix}{num}{chr(c)}" for c in range(ord("A"), ord(end_ch) + 1)
             )
             return result
 
         # 양쪽 알파벳 접미사 범위: IE238A~IE238G → prefix=IE, num=238, A~G
-        m_alpha = re.match(
-            rf"^({_PFX})(\d+)([A-Za-z])[~～∼\-]\1\2([A-Za-z])$", cleaned
-        )
+        m_alpha = re.match(rf"^({_PFX})(\d+)([A-Za-z])[~～∼\-]\1\2([A-Za-z])$", cleaned)
         if m_alpha:
             prefix = m_alpha.group(1)
             num = m_alpha.group(2)
@@ -171,6 +166,7 @@ def _expand_para_range(raw_num: str) -> list[str]:
         return [f"{prefix}{n}" for n in range(start_n, end_n + 1)]
     except Exception as exc:
         import logging
+
         logging.warning("_expand_para_range 오류: raw_num=%r, exc=%s", raw_num, exc)
         return [raw_num]
 
@@ -189,7 +185,9 @@ def fetch_parent_doc(parent_id: str) -> dict | None:
         if parent_id.startswith("QNA-"):
             doc = db[_QNA_PARENT_COLL].find_one({"_id": parent_id}, {"embedding": 0})
         elif parent_id.startswith(("FSS-", "KICPA-")):
-            doc = db[_FINDINGS_PARENT_COLL].find_one({"_id": parent_id}, {"embedding": 0})
+            doc = db[_FINDINGS_PARENT_COLL].find_one(
+                {"_id": parent_id}, {"embedding": 0}
+            )
         elif parent_id.startswith("EDU-"):
             doc = db[_KAI_PARENT_COLL].find_one({"_id": parent_id}, {"embedding": 0})
         else:
@@ -201,7 +199,9 @@ def fetch_parent_doc(parent_id: str) -> dict | None:
         return None
 
 
-def fetch_docs_by_topic(topic_title: str, allowed_sources: tuple[str, ...] = ()) -> list[dict]:
+def fetch_docs_by_topic(
+    topic_title: str, allowed_sources: tuple[str, ...] = ()
+) -> list[dict]:
     """소제목(hierarchy 내 토픽명)으로 MongoDB에서 해당 문서를 조회합니다.
 
     grouping.py에서 소소제목 펼침 시 전체 문단을 가져오는 데 사용됩니다.
@@ -230,11 +230,13 @@ def fetch_docs_by_para_ids(para_ids: tuple) -> list[dict]:
         coll = _get_mongo_collection()
         or_clauses = []
         for pid in para_ids:
-            or_clauses.extend([
-                {"paraNum": pid},
-                {"chunk_id": pid},
-                {"chunk_id": f"1115-{pid}"},
-            ])
+            or_clauses.extend(
+                [
+                    {"paraNum": pid},
+                    {"chunk_id": pid},
+                    {"chunk_id": f"1115-{pid}"},
+                ]
+            )
         docs = list(coll.find({"$or": or_clauses}, {"embedding": 0}))
         return [dict(d) for d in docs]
     except Exception:

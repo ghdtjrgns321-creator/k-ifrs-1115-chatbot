@@ -20,7 +20,12 @@ from pydantic_ai.providers.google import GoogleProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from app.config import settings
-from app.prompts import ANALYZE_PROMPT, CALC_CLARIFY_SYSTEM, CLARIFY_SYSTEM, GENERATE_SYSTEM
+from app.prompts import (
+    ANALYZE_PROMPT,
+    CALC_CLARIFY_SYSTEM,
+    CLARIFY_SYSTEM,
+    GENERATE_SYSTEM,
+)
 
 
 # ── 모델 팩토리 ────────────────────────────────────────────────────────────────
@@ -50,11 +55,18 @@ calc_fallback = _calc_model()
 
 # ── 출력 스키마 ────────────────────────────────────────────────────────────────
 
+
 class AnalyzeResult(BaseModel):
     routing: str = Field(description="회계 관련이면 'IN', 무관하면 'OUT'")
-    standalone_query: str = Field(description="재작성된 독립형 질문 (OUT이면 빈 문자열)")
-    is_situation: bool = Field(default=False, description="구체적 거래 상황 설명이면 True")
-    search_keywords: list[str] = Field(default_factory=list, description="벡터 DB 검색용 K-IFRS 핵심 키워드 3~5개")
+    standalone_query: str = Field(
+        description="재작성된 독립형 질문 (OUT이면 빈 문자열)"
+    )
+    is_situation: bool = Field(
+        default=False, description="구체적 거래 상황 설명이면 True"
+    )
+    search_keywords: list[str] = Field(
+        default_factory=list, description="벡터 DB 검색용 K-IFRS 핵심 키워드 3~5개"
+    )
     confusion_point: str = Field(
         default="",
         description="사용자 혼동 원인 (예: '세금계산서 발행 주체'). 없으면 빈 문자열",
@@ -67,7 +79,9 @@ class AnalyzeResult(BaseModel):
 
 class DocGrade(BaseModel):
     chunk_id: str = Field(description="평가한 문서의 chunk_id")
-    is_relevant: bool = Field(description="질문에 대한 답변으로 유효한지 여부 (True/False)")
+    is_relevant: bool = Field(
+        description="질문에 대한 답변으로 유효한지 여부 (True/False)"
+    )
 
 
 class GradeResult(BaseModel):
@@ -93,9 +107,9 @@ class ClarifyOutput(BaseModel):
     """clarify_agent 전용 — 분기 선택 + 인용을 구조적으로 강제."""
 
     selected_branches: list[str] = Field(
-        description='[결론 가이드]에서 선택한 분기 라벨. '
-                    'TYPE 1(조건부)이면 해당 모든 분기, TYPE 2(확정)이면 확정 1개. '
-                    '예: ["[분기 1] 5가지 요건 모두 충족 → IFRS 1115호 적용 (문단 9)"]',
+        description="[결론 가이드]에서 선택한 분기 라벨. "
+        "TYPE 1(조건부)이면 해당 모든 분기, TYPE 2(확정)이면 확정 1개. "
+        '예: ["[분기 1] 5가지 요건 모두 충족 → IFRS 1115호 적용 (문단 9)"]',
     )
     answer: str = Field(
         description="K-IFRS 1115호 답변 (마크다운). output_contract의 TYPE 1 또는 TYPE 2 형식.",
@@ -119,6 +133,7 @@ class CalcClarifyOutput(BaseModel):
     Why: gpt-4.1-mini(non-reasoning)는 selected_branches를 안정적으로 생성하지 못하고,
     output_validator의 ModelRetry가 산술 정확도를 떨어뜨림.
     """
+
     answer: str = Field(description="K-IFRS 1115호 답변 (마크다운)")
     cited_paragraphs: list[str] = Field(
         default_factory=list,
@@ -136,9 +151,11 @@ class CalcClarifyOutput(BaseModel):
 
 # ── 의존성 (clarify_agent 동적 system prompt 주입용) ────────────────────────────
 
+
 @dataclass
 class ClarifyDeps:
     """clarify_agent에 런타임으로 주입되는 의존성."""
+
     matched_topics: list[dict] = field(default_factory=list)
     checklist_state: dict | None = None
 
@@ -214,13 +231,19 @@ text_agent = Agent(
 
 
 @clarify_agent.output_validator
-async def _validate_clarify(ctx: RunContext[ClarifyDeps], result: ClarifyOutput) -> ClarifyOutput:
+async def _validate_clarify(
+    ctx: RunContext[ClarifyDeps], result: ClarifyOutput
+) -> ClarifyOutput:
     """빈 인용/빈 분기를 reject → ModelRetry로 LLM 재호출."""
     errors = []
     if not result.cited_paragraphs:
-        errors.append("cited_paragraphs가 비어있습니다. 답변의 근거 문단 번호를 반드시 포함하세요.")
+        errors.append(
+            "cited_paragraphs가 비어있습니다. 답변의 근거 문단 번호를 반드시 포함하세요."
+        )
     if not result.selected_branches:
-        errors.append("selected_branches가 비어있습니다. [결론 가이드]에서 선택한 분기를 반드시 포함하세요.")
+        errors.append(
+            "selected_branches가 비어있습니다. [결론 가이드]에서 선택한 분기를 반드시 포함하세요."
+        )
     if errors:
         raise ModelRetry("\n".join(errors))
     return result
@@ -228,6 +251,7 @@ async def _validate_clarify(ctx: RunContext[ClarifyDeps], result: ClarifyOutput)
 
 # ── clarify_agent 동적 system prompt ───────────────────────────────────────────
 # 체크리스트를 system 메시지에 직접 주입 → user 메시지에 끼워넣기보다 LLM이 더 강하게 따름
+
 
 @clarify_agent.system_prompt
 async def _inject_clarify_system(ctx: RunContext[ClarifyDeps]) -> str:
@@ -277,7 +301,9 @@ async def _inject_clarify_system(ctx: RunContext[ClarifyDeps]) -> str:
     elif remaining == 0:
         conclusion_hint = " 모든 항목 확인 완료. 결론을 내리세요."
     elif remaining <= 2:
-        conclusion_hint = f" 핵심 항목 {remaining}개 남음. 현재 정보로 결론 가능하면 내리세요."
+        conclusion_hint = (
+            f" 핵심 항목 {remaining}개 남음. 현재 정보로 결론 가능하면 내리세요."
+        )
     parts.append(
         f"\n\n[진행 상황] 체크리스트 {total_checklist_items}개 중 {checked_count}개 확인 완료, "
         f"남은 항목: {remaining}개.{conclusion_hint}"

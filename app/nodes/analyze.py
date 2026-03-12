@@ -12,9 +12,7 @@ async def analyze_query(state: dict) -> dict:
         f"{role}: {content}" for role, content in state.get("messages", [])[-3:]
     )
 
-    result = await analyze_agent.run(
-        f"최신 대화 기록 및 질문: {formatted_messages}"
-    )
+    result = await analyze_agent.run(f"최신 대화 기록 및 질문: {formatted_messages}")
     data = result.output
 
     # is_situation=True일 때만 체크리스트 매칭 (개념 질문에는 미적용)

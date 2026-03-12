@@ -4,13 +4,22 @@
 # is_situation 분기:
 #   True  → clarify_agent (체크리스트 system prompt 동적 주입 + 꼬리질문 선택지)
 #   False → generate_agent (개념 답변 + 꼬리질문)
+import logging
 import re
-import traceback
 
-from app.agents import generate_agent, clarify_agent, calc_clarify_agent, calc_fallback, ClarifyDeps, ClarifyOutput
+from app.agents import (
+    generate_agent,
+    clarify_agent,
+    calc_clarify_agent,
+    calc_fallback,
+    ClarifyDeps,
+    ClarifyOutput,
+)
 from app.domain.topic_content_map import get_topic_descs
 from app.prompts import CLARIFY_USER, GENERATE_USER
-from app.services.search_service import INVERTED_MAPPING
+from app.services.query_mapping import INVERTED_MAPPING
+
+logger = logging.getLogger(__name__)
 
 
 # 직접 계산을 요청하는 명령형 패턴만 허용
@@ -53,8 +62,7 @@ def _get_last_human_message(messages: list[tuple[str, str]]) -> str:
 def _get_related_practitioner_terms(docs: list[dict]) -> str:
     """검색된 문서에 등장하는 기준서 공식 용어의 실무 별칭을 조회합니다."""
     combined_text = " ".join(
-        (doc.get("content", "") + " " + doc.get("full_content", ""))
-        for doc in docs
+        (doc.get("content", "") + " " + doc.get("full_content", "")) for doc in docs
     )
 
     seen_official: set[str] = set()
@@ -116,12 +124,14 @@ async def generate_answer(state: dict) -> dict:
     # IE 적용사례 pinpoint은 LLM context에서 제외 — topics.json desc로 이미 커버
     # Why: IE 원문이 GENERATE_DOC_LIMIT 슬롯을 차지하면 본문/적용지침이 밀려남
     # UX3에는 relevant_docs 전체가 표시되므로 사용자는 원문을 볼 수 있음
-    docs_for_llm = [d for d in all_docs
-                    if not (d.get("chunk_type") == "pinpoint"
-                            and d.get("category") == "적용사례IE")]
+    docs_for_llm = [
+        d
+        for d in all_docs
+        if not (d.get("chunk_type") == "pinpoint" and d.get("category") == "적용사례IE")
+    ]
     ie_skipped = len(all_docs) - len(docs_for_llm)
     if ie_skipped:
-        print(f"[generate] IE 적용사례 {ie_skipped}건 LLM context 제외 (desc로 커버)")
+        logger.info("IE 적용사례 %d건 LLM context 제외 (desc로 커버)", ie_skipped)
     docs = docs_for_llm
     is_situation = state.get("is_situation", False)
     force_conclusion = state.get("force_conclusion", False)
@@ -142,12 +152,14 @@ async def generate_answer(state: dict) -> dict:
         text = raw or ""
         hierarchy = doc.get("hierarchy", "")
         context_parts.append(f"[{source_type}] {hierarchy}\n{text}")
-        cited_sources.append({
-            "source": source_type,
-            "hierarchy": hierarchy,
-            "chunk_id": doc.get("chunk_id", ""),
-            "related_paragraphs": doc.get("related_paragraphs", []),
-        })
+        cited_sources.append(
+            {
+                "source": source_type,
+                "hierarchy": hierarchy,
+                "chunk_id": doc.get("chunk_id", ""),
+                "related_paragraphs": doc.get("related_paragraphs", []),
+            }
+        )
 
     context_str = "\n\n---\n\n".join(context_parts)
     confusion_point = state.get("confusion_point", "") or "(없음)"
@@ -162,7 +174,9 @@ async def generate_answer(state: dict) -> dict:
             selected_branches = getattr(output, "selected_branches", [])
             structured_cited = output.cited_paragraphs
         elif is_situation and force_conclusion:
-            output = await _run_force_conclusion(state, docs, context_str, confusion_point)
+            output = await _run_force_conclusion(
+                state, docs, context_str, confusion_point
+            )
             is_conclusion = True
             selected_branches = []
             structured_cited = getattr(output, "cited_paragraphs", [])
@@ -174,11 +188,13 @@ async def generate_answer(state: dict) -> dict:
 
         answer = output.answer
         # LLM이 answer 필드에 "follow_up_questions:" 텍스트를 포함시키는 경우 제거
-        answer = re.split(r'\n*follow_up_questions\s*[:：]', answer, flags=re.IGNORECASE)[0].rstrip()
+        answer = re.split(
+            r"\n*follow_up_questions\s*[:：]", answer, flags=re.IGNORECASE
+        )[0].rstrip()
         follow_up_questions = output.follow_up_questions[:3]
 
     except Exception:
-        print(f"[error] generate_answer failed:\n{traceback.format_exc()}")
+        logger.error("generate_answer failed", exc_info=True)
         answer = "답변 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
         follow_up_questions = []
         selected_branches = []
@@ -196,6 +212,7 @@ async def generate_answer(state: dict) -> dict:
 
 
 # ── 분기별 LLM 호출 ─────────────────────────────────────────────────────────
+
 
 async def _run_clarify(
     state: dict, messages: list, context_str: str, confusion_point: str
@@ -245,13 +262,13 @@ async def _run_clarify(
     # gpt-4.1-mini(non-reasoning)에서 포맷 FAIL + 산술 정확도 하락 발생.
     # calc_clarify_agent는 non-reasoning 전용 스키마/프롬프트로 이 문제 해결.
     if use_calc:
-        print(f"[clarify] model=gpt-4.1-mini(calc) via calc_clarify_agent")
+        logger.info("clarify model=gpt-4.1-mini(calc) via calc_clarify_agent")
         result = await calc_clarify_agent.run(
             user_msg,
             model_settings={"temperature": 0.0},
         )
     else:
-        print(f"[clarify] model=gemini-flash(thinking=high)")
+        logger.info("clarify model=gemini-flash(thinking=high)")
         result = await clarify_agent.run(user_msg, deps=deps)
     return result.output
 
@@ -267,7 +284,9 @@ async def _run_force_conclusion(
         check_lines = []
         for c in checked_items:
             if isinstance(c, dict):
-                check_lines.append(f"- Q: {c.get('question', '?')} → A: {c.get('answer', '?')}")
+                check_lines.append(
+                    f"- Q: {c.get('question', '?')} → A: {c.get('answer', '?')}"
+                )
             else:
                 check_lines.append(f"- {c}")
         context_with_checks += "\n\n[사용자가 확인한 사항]\n" + "\n".join(check_lines)
@@ -280,12 +299,16 @@ async def _run_force_conclusion(
     if not use_calc:
         topic_knowledge = _format_topic_knowledge(state.get("matched_topics", []))
         if topic_knowledge:
-            context_with_checks = f"[참고 지식]\n{topic_knowledge}\n\n---\n\n{context_with_checks}"
+            context_with_checks = (
+                f"[참고 지식]\n{topic_knowledge}\n\n---\n\n{context_with_checks}"
+            )
 
     # precedents/formula를 context 앞에 추가 — retriever 의존도 축소
     precedents_text = _format_precedents_context(state.get("matched_topics", []))
     if precedents_text:
-        context_with_checks = f"[큐레이션 선례·공식]\n{precedents_text}\n\n---\n\n{context_with_checks}"
+        context_with_checks = (
+            f"[큐레이션 선례·공식]\n{precedents_text}\n\n---\n\n{context_with_checks}"
+        )
 
     user_msg = GENERATE_USER.format(
         complexity="complex",
@@ -297,14 +320,14 @@ async def _run_force_conclusion(
 
     # 듀얼트랙: 계산 질문이면 gpt-4.1-mini, 아니면 Gemini Flash (기본값)
     if use_calc:
-        print(f"[force_conclusion] model=gpt-4.1-mini(calc)")
+        logger.info("force_conclusion model=gpt-4.1-mini(calc)")
         result = await generate_agent.run(
             user_msg,
             model=calc_fallback,
             model_settings={"temperature": 0.0},
         )
     else:
-        print(f"[force_conclusion] model=gemini-flash(thinking=high)")
+        logger.info("force_conclusion model=gemini-flash(thinking=high)")
         result = await generate_agent.run(user_msg)
     return result.output
 
@@ -325,6 +348,7 @@ async def _run_generate(
     # 듀얼트랙 라우팅: 계산 → gpt-4.1-mini, simple → Gemini low, complex → Gemini high
     question = state["standalone_query"]
     use_calc = _needs_calculation(state.get("matched_topics", []), question)
+    model_tag = "gemini-flash(thinking=high)"  # 기본값 — 분기 추가 시 미선언 방지
     if use_calc:
         model_tag = "gpt-4.1-mini(calc)"
         result = await generate_agent.run(
@@ -342,5 +366,5 @@ async def _run_generate(
         model_tag = "gemini-flash(thinking=high)"
         result = await generate_agent.run(user_msg)
 
-    print(f"[generate] model={model_tag}, complexity={complexity}")
+    logger.info("generate model=%s, complexity=%s", model_tag, complexity)
     return result.output

@@ -3,7 +3,7 @@
 > **이 문서는 LLM에게 프로젝트 컨텍스트를 전달하기 위해 작성되었습니다.**
 > 기술 스택, 환경 변수, 실행 명령어, 코딩 컨벤션은 **CLAUDE.md** 참조.
 >
-> **최종 업데이트**: 2026-03-12
+> **최종 업데이트**: 2026-03-12 (Agent 8개, 토픽 26개, UI 21파일, preprocessing 13스크립트)
 
 ---
 
@@ -62,33 +62,64 @@ k-ifrs-1115-chatbot/
 │   │   ├── routes.py              # FastAPI 라우터 (/chat, /search, /health)
 │   │   └── schemas.py             # Pydantic 요청/응답 스키마
 │   ├── domain/                    # Decision Tree + 큐레이션
-│   │   ├── decision_trees.py      # MASTER_DECISION_TREES (25개 토픽)
+│   │   ├── decision_trees.py      # MASTER_DECISION_TREES (26개 토픽, 1182줄)
 │   │   ├── tree_matcher.py        # 키워드→점수→상위 2개 매칭
-│   │   ├── summary_matcher.py     # 서머리 임베딩 매칭
-│   │   └── topic_content_map.py   # topics.json 로드
+│   │   ├── summary_matcher.py     # 서머리 임베딩 코사인 유사도 (QNA/감리/IE 매칭)
+│   │   ├── topic_content_map.py   # topics.json 로더 (토픽별 큐레이션)
+│   │   └── conclusion.json        # 8개 핵심 체크리스트 + 결론 가이드 (JSON)
 │   ├── nodes/                     # 1파일 1노드: analyze, retrieve, rerank, generate, format
 │   ├── services/                  # chat_service(SSE), search_service, session_store
-│   ├── preprocessing/             # 데이터 전처리 파이프라인 (순서대로 실행, 99-verify-chunks.py로 검증)
-│   ├── test/                      # 연결·검색 테스트
-│   ├── ui/                        # Streamlit UI 컴포넌트 (18파일)
+│   ├── preprocessing/             # 데이터 전처리 파이프라인 (13스크립트, 99-verify로 검증)
+│   │   ├── 01~04                  # 본문 크롤링 → 청킹 → 임베딩
+│   │   ├── 05~07                  # QNA 크롤링 → 임베딩, 감리사례 임베딩
+│   │   ├── 08-generate-titles.py  # LLM 기반 제목 생성
+│   │   ├── 08-kai-embed.py        # ★ KAI 교육자료 임베딩
+│   │   ├── 09-expand-query-mapping.py  # QUERY_MAPPING 자동 확장
+│   │   ├── 10-parse-curation.py   # ★ topic-curation.txt → topics.json 파싱
+│   │   ├── 11-fix-external-tables.py  # ★ 외부 테이블 보정
+│   │   ├── 12-summary-embed.py    # ★ QNA/감리/IE 서머리 임베딩
+│   │   ├── 99-verify-chunks.py    # 전수 검증
+│   │   └── _add_topics.py         # 토픽 메타데이터 일괄 추가
+│   ├── test/
+│   │   ├── model_comparison/      # ★ 모델 비교 평가 (Gemini vs gpt, 듀얼트랙 검증)
+│   │   ├── preprocessing_test/    # 데이터 품질 테스트 (API, 중복, QNA 구조 등)
+│   │   ├── quality_test/          # ★ UX 3,4단계 품질 테스트 (골든셋)
+│   │   ├── test_pinpoint_docs.py  # 핀포인트 문서 파싱 테스트
+│   │   ├── test_ie_bypass.py      # IE bypass 로직 테스트
+│   │   └── unicode_*.py           # 유니코드 감사
+│   ├── ui/                        # Streamlit UI 컴포넌트 (21파일)
 │   │   ├── layout.py              # CSS 주입 + 헤더 + 사이드바
-│   │   ├── pages.py               # 홈/근거열람/AI답변 페이지 렌더러
+│   │   ├── pages.py               # 홈/토픽브라우즈/근거/AI답변 페이지 렌더러
 │   │   ├── topic_browse.py        # 토픽 브라우즈 오케스트레이터
 │   │   ├── topic_tabs.py          # 4탭 렌더링 (본문·BC, IE, QNA, 감리)
-│   │   ├── evidence.py            # 근거 열람 아코디언
+│   │   ├── evidence.py            # 근거 열람 아코디언 (카테고리별 그룹)
+│   │   ├── pinpoint_panel.py      # ★ 답변 근거 패널 (인용 문단 + summary 매칭)
+│   │   ├── doc_renderers.py       # ★ 개별 문서 카드 렌더링
+│   │   ├── doc_helpers.py         # ★ 문서 처리 순수함수 (정렬, 필터링)
+│   │   ├── grouping.py            # ★ 문서 그룹핑 (소제목/소소제목 2단)
+│   │   ├── cross_links.py         # ★ 관련 토픽 pills (CSS 스타일)
+│   │   ├── constants.py           # ★ 키워드 칩, 아코디언 그룹, 진행률 매핑
 │   │   ├── db.py                  # MongoDB 조회 (PDR 라우팅 + cache)
-│   │   └── (그 외 12파일)          # components, session, text, modal 등
+│   │   ├── client.py              # FastAPI 비동기 클라이언트
+│   │   ├── session.py             # Streamlit session_state 관리
+│   │   ├── text.py                # 텍스트 정규화, 문단 참조 추출/강조
+│   │   ├── modal.py               # 모달 창
+│   │   └── components.py          # 공통 UI 유틸 (축소됨)
 │   ├── main.py                    # FastAPI 진입점 (lifespan + CORS + BM25 인덱스 빌드)
 │   ├── streamlit_app.py           # Streamlit UI 진입점
 │   ├── config.py                  # pydantic-settings 중앙 설정
-│   ├── agents.py                  # PydanticAI Agent 정의 (ClarifyOutput/GenerateOutput + result_validator)
+│   ├── agents.py                  # PydanticAI Agent 8개 정의 + result_validator
 │   ├── pipeline.py                # 순수 Python async generator 오케스트레이션
 │   ├── embeddings.py              # Upstage REST API 직접 호출 (async + sync)
 │   ├── retriever.py               # 검색 엔진 (Vector + BM25 + RRF 융합)
 │   ├── reranker.py                # Cohere Reranker 래퍼
 │   ├── prompts.py                 # 프롬프트 (reasoning_guard + 분기 강제 지시)
 │   └── state.py                   # RAGState TypedDict
-├── data/                          # raw/(gitignore), web/(청크JSON), findings/, topic-curation/topics.json
+├── data/
+│   ├── web/                       # 청크 JSON (kifrs-1115-chunks, kai-1115 등)
+│   ├── topic-curation/            # topics.json + summary-embeddings.json + 큐레이션 원본
+│   └── findings/                  # 감리사례 원본
+├── .streamlit/config.toml         # Streamlit 테마/설정
 ├── Dockerfile / docker-compose.yml / pyproject.toml
 ├── CLAUDE.md                      # 프로젝트 지침 (Claude Code 자동 로드)
 └── PROJECT_OVERVIEW.md            # ← 이 파일
@@ -127,23 +158,27 @@ pipeline.py — async generator, SSE yield
 ### 핵심 메커니즘
 
 - **2계층 검색**: 핀포인트(큐레이션 문서 직접 조회, 1순위) + 리트리버(Vector+BM25+RRF, 2순위)
-- **핀포인트 Fetch**: decision_tree의 precedents/red_flags에서 문서 ID 파싱 → MongoDB 직접 조회 (QNA 66건, 감리 17건, IE 55건, 교육 5건 = 143 고유 참조)
+- **핀포인트 Fetch**: decision_tree의 precedents/red_flags에서 문서 ID 파싱 → MongoDB 직접 조회 (QNA/감리/IE/KAI)
 - **PDR**: QNA/감리/교육자료 Child 청크 → parent_id로 부모 원문 전체 조회
 - **듀얼트랙 모델 라우팅**: 계산→gpt-4.1-mini / simple→Gemini low / complex→Gemini high
 - **멀티턴 체크리스트**: clarify가 Dynamic 체크리스트 주입, Q&A 쌍 추적
 - **Precedents 직접 주입**: MASTER_DECISION_TREES의 IE/QNA/감리사례를 context에 직접 주입
 - **감리사례 섀도우 매칭**: format에서 유사 감리 지적사례 자동 매칭
 
-### Agent 구성 (`agents.py`)
+### Agent 구성 (`agents.py`) — 8개
 
-| Agent | 기본 모델 | 계산 폴백 | 출력 |
-|-------|----------|----------|------|
-| `analyze_agent` | gpt-4.1-mini | — | `AnalyzeResult` |
-| `generate_agent` | Gemini Flash (thinking=high) | gpt-4.1-mini | `GenerateOutput` |
-| `clarify_agent` | Gemini Flash (thinking=high) | gpt-4.1-mini | `ClarifyOutput` |
-| `text_agent` | gpt-4.1-mini | — | `str` |
-| `calc_clarify_agent` | gpt-4.1-mini | — | `CalcClarifyOutput` (계산 전용, topic_knowledge 스킵) |
-| `calc_fallback` | gpt-4.1-mini | — | (model override용) |
+| Agent | 기본 모델 | 출력 | 용도 |
+|-------|----------|------|------|
+| `analyze_agent` | gpt-4.1-mini | `AnalyzeResult` | 질문 분석/라우팅/complexity 판단 |
+| `grade_agent` | gpt-4.1-mini | `GradeResult` | 문서 품질 평가 (DocGrade) |
+| `generate_agent` | Gemini Flash (thinking=high) | `GenerateOutput` | 일반 답변 생성 |
+| `clarify_agent` | Gemini Flash (thinking=high) | `ClarifyOutput` | 거래 상황 분석 + 체크리스트 (동적 system prompt) |
+| `calc_clarify_agent` | gpt-4.1-mini | `CalcClarifyOutput` | 계산 전용 clarify (validator 없음, topic_knowledge 스킵) |
+| `rewrite_agent` | gpt-4.1-mini | `str` | 질문 재작성 |
+| `hyde_agent` | gpt-4.1-mini | `str` | HyDE 가상 문서 생성 |
+| `text_agent` | gpt-4.1-mini | `str` | 범용 텍스트 (search_service 키워드 추출 등) |
+
+- `calc_fallback` = `_calc_model()` 인스턴스 — generate.py에서 model override용
 
 ---
 
@@ -182,7 +217,9 @@ pipeline.py — async generator, SSE yield
 
 `analyze` 노드가 추출한 키워드를 `MASTER_DECISION_TREES`의 `trigger_keywords`와 매칭하여, `is_situation=True`일 때 `clarify_agent`의 system prompt에 체크리스트 + 결론가이드를 동적 주입합니다.
 
-### MASTER_DECISION_TREES 스키마 (25개 토픽)
+### MASTER_DECISION_TREES 스키마 (26개 토픽, 1182줄)
+
+26개 토픽: 계약의 식별, 계약의 결합, 계약변경, 수행의무 식별, 일련의 구별되는 재화나 용역, 변동대가, 유의적인 금융요소, 비현금 대가, 고객에게 지급할 대가, 거래가격 배분, 할인액의 배분, 변동대가의 배분, 기간에 걸쳐 vs 한 시점 인식, 진행률 측정, 거래가격의 후속 변동, 표시, 계약체결 증분원가, 계약이행원가, 본인 vs 대리인, 라이선싱, 반품권이 있는 판매, 보증, 통제 이전의 특수 형태, 고객의 권리 관련, 기타, 신종 비즈니스 및 복합 쟁점 (Gray Area)
 
 ```python
 MASTER_DECISION_TREES = {
@@ -196,6 +233,11 @@ MASTER_DECISION_TREES = {
     }
 }
 ```
+
+### 추가 도메인 파일
+
+- **`conclusion.json`**: 8개 핵심 토픽별 체크리스트 + 결론 가이드 (JSON 형태)
+- **`summary_matcher.py`**: `summary-embeddings.json`에서 QNA/감리/IE 서머리를 코사인 유사도로 매칭 → `format` 노드에서 감리사례 넛지 자동 추가
 
 ### 매칭 로직 (`tree_matcher.py`)
 
@@ -226,6 +268,17 @@ TopicData = {
 
 **총 청크**: 약 1,303개 (K-IFRS 1115호 본문·적용지침·BC·IE + QNA 101건 + 감리사례 18건 + KAI 교육자료 5건 + 토픽 큐레이션)
 
+### MongoDB 컬렉션
+
+| 컬렉션명 | 용도 | 키 |
+|---------|------|-----|
+| `k-ifrs-1115-chatbot` | 메인 청크 (본문/QNA child/감리 child/KAI child) | `chunk_id` |
+| `k-ifrs-1115-qna-parents` | QNA 원문 (PDR 부모) | `_id` |
+| `k-ifrs-1115-findings-parents` | 감리사례 원문 (PDR 부모) | `_id` |
+| `k-ifrs-1115-kai-parents` | KAI 교육자료 원문 (PDR 부모) | `_id` |
+
+ID 접두사 라우팅: `QNA-` → qna-parents, `FSS-`/`KICPA-` → findings-parents, `KAI-` → kai-parents
+
 ```python
 # MongoDB 청크 스키마
 {
@@ -239,6 +292,14 @@ TopicData = {
 }
 ```
 
+### 큐레이션 데이터 (`data/topic-curation/`)
+
+| 파일 | 용도 |
+|------|------|
+| `topics.json` | 26개 토픽별 본문·IE·QNA·감리사례 큐레이션 (3026줄) |
+| `summary-embeddings.json` | QNA/감리/IE 서머리 임베딩 벡터 (summary_matcher용) |
+| `topic-curation.txt` | 큐레이션 원본 마크다운 (10-parse-curation.py 입력) |
+
 ---
 
 ## 9. UI/UX 스타일링
@@ -251,6 +312,8 @@ TopicData = {
 
 ## 10. 향후 개발 방향
 
+- [x] 모델 비교 평가 완료 (Gemini vs gpt 듀얼트랙 검증)
+- [x] UX 3,4단계 품질 테스트 골든셋 작성
 - [ ] 통합 테스트 + 시연용 골든셋 구축
 - [ ] Gray Area 방어, 멀티토픽 동시 매칭
 - [ ] BIG4 가이드 임베딩, RAGAS 평가 자동화, Oracle Cloud 배포

@@ -7,7 +7,7 @@
 import httpx
 from app.config import settings
 
-_EMBED_URL = "https://api.upstage.ai/v1/solar/embeddings"
+_EMBED_URL = settings.upstage_embed_url
 
 
 def _headers() -> dict:
@@ -15,6 +15,7 @@ def _headers() -> dict:
 
 
 # ── 동기 버전 (전처리 스크립트 + retriever.py + search_service.py) ──────────────
+
 
 def embed_texts_sync(
     texts: list[str],
@@ -38,6 +39,7 @@ def embed_query_sync(text: str) -> list[float]:
 
 
 # ── 비동기 버전 (런타임 파이프라인) ───────────────────────────────────────────
+
 
 async def embed_query(text: str) -> list[float]:
     """query 모델로 단일 텍스트를 임베딩합니다 (비동기)."""

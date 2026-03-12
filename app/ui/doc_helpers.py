@@ -6,7 +6,11 @@
 import re
 from collections import defaultdict
 
-from app.ui.text import _CONTEXT_PREFIX_RE, _QNA_SECTION_INJECT_RE, _ensure_paragraph_breaks
+from app.ui.text import (
+    _CONTEXT_PREFIX_RE,
+    _QNA_SECTION_INJECT_RE,
+    _ensure_paragraph_breaks,
+)
 
 
 def _get_doc_para_num(doc: dict) -> str:
@@ -116,8 +120,9 @@ def _convert_journal_entries(text: str) -> str:
       (대) 수익
       9,700
     """
+
     def _parse_je_block(block: str) -> str:
-        lines = [l.strip() for l in block.strip().split("\n") if l.strip()]
+        lines = [line.strip() for line in block.strip().split("\n") if line.strip()]
         if len(lines) < 4:
             return block
 
@@ -131,7 +136,9 @@ def _convert_journal_entries(text: str) -> str:
             if m_side:
                 current_side = f"({m_side.group(1)})"
                 account = m_side.group(2).strip()
-                if i + 1 < len(lines) and re.match(r"^[\d,]+\.?\d*$", lines[i + 1].strip()):
+                if i + 1 < len(lines) and re.match(
+                    r"^[\d,]+\.?\d*$", lines[i + 1].strip()
+                ):
                     rows.append((current_side, account, lines[i + 1].strip()))
                     i += 2
                 else:
@@ -182,13 +189,18 @@ def _convert_journal_entries(text: str) -> str:
         if in_je:
             if not stripped:
                 continue
-            if (re.match(r"^\(대\)", stripped)
+            if (
+                re.match(r"^\(대\)", stripped)
                 or re.match(r"^[\d,]+\.?\d*$", stripped)
-                or (je_buffer and not re.match(r"^[\[(#*\-]", stripped)
+                or (
+                    je_buffer
+                    and not re.match(r"^[\[(#*\-]", stripped)
                     and not stripped.startswith("##")
                     and not stripped.startswith("---")
                     and not stripped.startswith("**[")
-                    and len(stripped) < 30)):
+                    and len(stripped) < 30
+                )
+            ):
                 je_buffer.append(stripped)
                 continue
             else:
@@ -215,26 +227,42 @@ def _format_pdr_content(content: str) -> str:
 
     # 섹션 헤더 변환: "## 질의 내용" → "\n---\n**질의 내용**"
     _SECTION_HEADERS = (
-        "질의 내용", "질의요지", "질의에서 제시된 견해", "질의자의 의문사항",
-        "배경 및 질의", "질의",
-        "회신", "회답",
-        "관련 회계기준", "관련회계기준", "관련기준",
-        "참고자료", "참고 자료",
-        "검토과정에서 논의된 내용", "검토과정",
-        "판단근거", "배경", "본문",
+        "질의 내용",
+        "질의요지",
+        "질의에서 제시된 견해",
+        "질의자의 의문사항",
+        "배경 및 질의",
+        "질의",
+        "회신",
+        "회답",
+        "관련 회계기준",
+        "관련회계기준",
+        "관련기준",
+        "참고자료",
+        "참고 자료",
+        "검토과정에서 논의된 내용",
+        "검토과정",
+        "판단근거",
+        "배경",
+        "본문",
         "레퍼런스",
-        "결론", "감리 결과", "지적 내용", "위반사항",
+        "결론",
+        "감리 결과",
+        "지적 내용",
+        "위반사항",
     )
     for header in _SECTION_HEADERS:
         text = re.sub(
             r"^#{1,4}\s*" + re.escape(header) + r"\s*$",
             f"\n---\n**{header}**",
-            text, flags=re.MULTILINE,
+            text,
+            flags=re.MULTILINE,
         )
         text = re.sub(
             r"^" + re.escape(header) + r"\s*$",
             f"\n---\n**{header}**",
-            text, flags=re.MULTILINE,
+            text,
+            flags=re.MULTILINE,
         )
 
     # ~ 취소선 방지 — U+223C(∼ TILDE OPERATOR)도 동일 처리
@@ -247,7 +275,8 @@ def _format_pdr_content(content: str) -> str:
     # "부N" 부록 문단 마커 포맷팅
     text = re.sub(
         r"(?:^|\n)\s*(?:%\s*)?부(\d{1,2})\s*([가-힣A-Z])",
-        r"\n\n**[부\1]** \2", text,
+        r"\n\n**[부\1]** \2",
+        text,
     )
 
     # 분개 → 마크다운 테이블

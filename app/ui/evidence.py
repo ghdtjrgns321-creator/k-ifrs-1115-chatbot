@@ -15,7 +15,6 @@ from app.ui.db import _expand_para_range, fetch_docs_by_para_ids, fetch_ie_case_
 from app.ui.doc_helpers import (
     _apply_cluster_first_bonus,
     _get_doc_para_num,
-    _is_ie_doc,
     _normalize_case_group_title,
 )
 from app.domain.topic_content_map import get_desc_for_pdr
@@ -23,12 +22,30 @@ from app.ui.doc_renderers import (
     _render_document_expander,
     _render_pdr_expander,
 )
-from app.ui.text import _esc, _extract_para_refs, _para_ref_to_num
+from app.ui.text import _extract_para_refs, _para_ref_to_num
 
 # AI 답변 페이지에서 벡터검색 대신 인용 문단만 표시할 소스 유형
 _STANDARD_SOURCES = frozenset(
     {"본문", "적용지침B", "결론도출근거", "용어정의", "시행일"}
 )
+
+# 주제별 그룹핑 대상 — 본문/적용지침, BC
+_TOPIC_GROUPABLE: dict[str, tuple[str, ...]] = {
+    "📘 기준서 본문 및 적용지침": ("본문", "적용지침B"),
+    "🔍 결론도출근거(BC)": ("결론도출근거",),
+}
+
+# QNA/감리사례 그룹
+_PDR_GROUPS = frozenset({"💬 질의회신(QNA)", "🚨 감리지적사례"})
+
+
+def _extract_num(doc: dict) -> tuple[str, int, str]:
+    """suffix 포함 자연 정렬: B59 → B59A → B59B"""
+    para_str = _get_doc_para_num(doc)
+    m = re.match(r"([A-Za-z]*)(\d+)([A-Za-z]*)", para_str)
+    if m:
+        return (m.group(1), int(m.group(2)), m.group(3))
+    return ("ZZ", 999999, "")
 
 
 def _get_cited_standard_docs() -> list[dict]:
@@ -165,6 +182,195 @@ def _get_cited_ie_docs() -> list[dict]:
     return ie_docs
 
 
+def _render_supp_extra(sources: list[str], idx_base: int) -> None:
+    """해당 소스의 보조 문서(AI 미인용, retriever 결과 TOP 3)를 더보기로 렌더링."""
+    supp_map = st.session_state.get("_supp_by_group", {})
+    # 그룹의 sources 목록에 매칭되는 보조 문서 수집
+    extra: list[dict] = []
+    for src in sources:
+        extra.extend(supp_map.get(src, []))
+    if not extra:
+        return
+    with st.expander(f"📂 참고할 수 있는 추가 문서 ({len(extra)}건)", expanded=False):
+        with st.container(border=True):
+            for i, d in enumerate(extra):
+                pid = d.get("parent_id", "")
+                if pid:
+                    _render_pdr_expander(d, doc_index=idx_base + i)
+                else:
+                    _render_document_expander(d, doc_index=idx_base + i)
+
+
+# ---------------------------------------------------------------------------
+# 서브 렌더링 함수들 — _render_evidence_panel에서 분리
+# ---------------------------------------------------------------------------
+
+
+def _prepare_ai_answer_docs(docs: list[dict]) -> list[dict]:
+    """ai_answer 페이지: 인용 문서를 메인으로, retriever 결과는 보조로 분리.
+
+    Returns: 인용 기반으로 재구성된 docs 리스트.
+    Side effect: st.session_state["_supp_by_group"] 설정.
+    """
+    _SUPPLEMENTABLE = frozenset({"질의회신", "QNA", "감리사례", "적용사례IE"})
+
+    # retriever가 가져온 QNA/감리/IE 원본 보존 (더보기용)
+    retrieved_supplementary = [
+        d for d in docs if d.get("source", "") in _SUPPLEMENTABLE
+    ]
+
+    # 인용 문서로 교체
+    docs = [
+        d
+        for d in docs
+        if d.get("source", "") not in (_STANDARD_SOURCES | _SUPPLEMENTABLE)
+    ]
+    docs.extend(_get_cited_standard_docs())
+
+    # 인용된 QNA/감리/IE
+    cited_pdr = _get_cited_pdr_docs()
+    cited_ie = _get_cited_ie_docs()
+    docs.extend(cited_pdr)
+    docs.extend(cited_ie)
+
+    # 인용 문서의 ID 집합 — 더보기에서 중복 제거용
+    cited_pdr_ids = {d.get("parent_id") or d.get("chunk_id") for d in cited_pdr}
+    cited_ie_cids = {d.get("chunk_id") for d in cited_ie}
+
+    # retriever 결과 중 인용되지 않은 것을 소스별로 분리 (각 TOP 3)
+    _supp_by_group: dict[str, list[dict]] = {}
+    for d in retrieved_supplementary:
+        uid = d.get("parent_id") or d.get("chunk_id", "")
+        if uid and uid not in cited_pdr_ids and uid not in cited_ie_cids:
+            src = d.get("source", "")
+            _supp_by_group.setdefault(src, []).append(d)
+    # 각 소스별 score 상위 3개만 유지
+    for src in _supp_by_group:
+        _supp_by_group[src].sort(key=lambda x: x.get("score", 0.0), reverse=True)
+        _supp_by_group[src] = _supp_by_group[src][:3]
+    st.session_state["_supp_by_group"] = _supp_by_group
+
+    return docs
+
+
+def _render_ie_group(
+    group_name: str,
+    group_docs: list[dict],
+) -> None:
+    """IE 적용사례 그룹: 사례별 expander + 더보기 렌더링."""
+    total_count = len(group_docs)
+    st.markdown(f"### {group_name} — {total_count}건")
+
+    # 사례별 분류
+    seen_cases: set[str] = set()
+    case_order: list[str] = []
+    no_case_docs: list[dict] = []
+    for d in group_docs:
+        raw_cgt = d.get("case_group_title", "")
+        cgt = _normalize_case_group_title(raw_cgt) if raw_cgt else ""
+        if not cgt:
+            no_case_docs.append(d)
+        elif cgt not in seen_cases:
+            seen_cases.add(cgt)
+            case_order.append(cgt)
+
+    # 모든 사례 문서를 1번 DB 쿼리 후 분류
+    all_ie_docs = fetch_ie_case_docs(tuple(case_order)) if case_order else []
+    case_docs_map: dict[str, list[dict]] = {}
+    for doc in all_ie_docs:
+        raw_cgt = doc.get("case_group_title", "")
+        cgt_key = _normalize_case_group_title(raw_cgt) if raw_cgt else ""
+        if cgt_key:
+            case_docs_map.setdefault(cgt_key, []).append(doc)
+
+    INITIAL_CASES = 3
+    main_cases = case_order[:INITIAL_CASES]
+    rest_cases = case_order[INITIAL_CASES:]
+
+    doc_idx = 0
+    for cgt in main_cases:
+        case_docs = sorted(case_docs_map.get(cgt, []), key=_extract_num)
+        with st.expander(f"📎 {cgt}  ({len(case_docs)}건)", expanded=False):
+            for doc in case_docs:
+                _render_document_expander(doc, doc_index=doc_idx)
+                doc_idx += 1
+
+    if rest_cases or no_case_docs:
+        st.markdown(
+            "<div style='border-top:1.5px dashed #b8cef0; "
+            "margin:1.25rem 0 0.25rem;'></div>",
+            unsafe_allow_html=True,
+        )
+        with st.expander(
+            f"📂 다른 사례 더보기 ({len(rest_cases) + len(no_case_docs)}건)",
+            expanded=False,
+        ):
+            with st.container(border=True):
+                for cgt in rest_cases:
+                    case_docs = sorted(case_docs_map.get(cgt, []), key=_extract_num)
+                    with st.expander(f"📎 {cgt}  ({len(case_docs)}건)", expanded=False):
+                        for doc in case_docs:
+                            _render_document_expander(doc, doc_index=doc_idx)
+                            doc_idx += 1
+                if no_case_docs:
+                    with st.expander(
+                        f"📄 기타 ({len(no_case_docs)}건)", expanded=False
+                    ):
+                        for d in no_case_docs:
+                            _render_document_expander(d, doc_index=doc_idx)
+                            doc_idx += 1
+
+    # 보조 문서: ACCORDION_GROUPS에서 해당 그룹의 소스 목록으로 조회
+    _render_supp_extra(ACCORDION_GROUPS.get(group_name, []), 700 + doc_idx)
+
+
+def _render_pdr_group(group_name: str, group_docs: list[dict]) -> None:
+    """QNA/감리사례 그룹: parent_id 기준 dedup + 보조 더보기 렌더링."""
+    unique_parents: dict[str, dict] = {}
+    no_parent_docs: list[dict] = []
+    for d in group_docs:
+        pid = d.get("parent_id", "")
+        if pid:
+            if pid not in unique_parents:
+                unique_parents[pid] = d
+        else:
+            no_parent_docs.append(d)
+
+    pdr_docs = list(unique_parents.values()) + no_parent_docs
+    for i, d in enumerate(pdr_docs):
+        pid = d.get("parent_id", "")
+        if pid:
+            _render_pdr_expander(d, doc_index=i, entry_desc=get_desc_for_pdr(pid))
+        else:
+            _render_document_expander(d, doc_index=i)
+
+    # 보조 문서: ACCORDION_GROUPS에서 해당 그룹의 소스 목록으로 조회
+    _render_supp_extra(ACCORDION_GROUPS.get(group_name, []), 800 + len(pdr_docs))
+
+
+def _render_default_group(group_docs: list[dict]) -> None:
+    """기타 그룹: 상위 3개 표시 + 나머지 '더보기' 토글."""
+    INITIAL = 3
+    initial_docs = group_docs[:INITIAL]
+    rest_docs = group_docs[INITIAL:]
+
+    initial_docs.sort(key=_extract_num)
+    for i, d in enumerate(initial_docs):
+        _render_document_expander(d, doc_index=i)
+
+    if rest_docs:
+        rest_docs.sort(key=_extract_num)
+        with st.expander(f"📂 더보기 ({len(rest_docs)}건)", expanded=False):
+            with st.container(border=True):
+                for i, d in enumerate(rest_docs):
+                    _render_document_expander(d, doc_index=INITIAL + i)
+
+
+# ---------------------------------------------------------------------------
+# 메인 오케스트레이터
+# ---------------------------------------------------------------------------
+
+
 def _render_evidence_panel() -> None:
     """카테고리별 아코디언 문서 목록을 렌더링합니다.
 
@@ -190,54 +396,10 @@ def _render_evidence_panel() -> None:
     docs = deduped
 
     # AI 답변 페이지: 인용 문서를 메인으로, retriever 결과는 보조로 분리
-    # session_state에 보조 문서를 저장해두고 렌더링 시 "더보기"로 표시
-    _SUPPLEMENTABLE = frozenset({"질의회신", "QNA", "감리사례", "적용사례IE"})
     if st.session_state.get("page_state") == "ai_answer":
-        # retriever가 가져온 QNA/감리/IE 원본 보존 (더보기용)
-        retrieved_supplementary = [
-            d for d in docs if d.get("source", "") in _SUPPLEMENTABLE
-        ]
-
-        # 인용 문서로 교체
-        docs = [
-            d
-            for d in docs
-            if d.get("source", "") not in (_STANDARD_SOURCES | _SUPPLEMENTABLE)
-        ]
-        docs.extend(_get_cited_standard_docs())
-
-        # 인용된 QNA/감리/IE
-        cited_pdr = _get_cited_pdr_docs()
-        cited_ie = _get_cited_ie_docs()
-        docs.extend(cited_pdr)
-        docs.extend(cited_ie)
-
-        # 인용 문서의 ID 집합 — 더보기에서 중복 제거용
-        cited_pdr_ids = {d.get("parent_id") or d.get("chunk_id") for d in cited_pdr}
-        cited_ie_cids = {d.get("chunk_id") for d in cited_ie}
-
-        # retriever 결과 중 인용되지 않은 것을 소스별로 분리 (각 TOP 3)
-        _supp_by_group: dict[str, list[dict]] = {}
-        for d in retrieved_supplementary:
-            uid = d.get("parent_id") or d.get("chunk_id", "")
-            if uid and uid not in cited_pdr_ids and uid not in cited_ie_cids:
-                src = d.get("source", "")
-                _supp_by_group.setdefault(src, []).append(d)
-        # 각 소스별 score 상위 3개만 유지
-        for src in _supp_by_group:
-            _supp_by_group[src].sort(key=lambda x: x.get("score", 0.0), reverse=True)
-            _supp_by_group[src] = _supp_by_group[src][:3]
-        st.session_state["_supp_by_group"] = _supp_by_group
+        docs = _prepare_ai_answer_docs(docs)
     else:
         st.session_state["_supp_by_group"] = {}
-
-    # suffix 포함 자연 정렬: B59 → B59A → B59B
-    def _extract_num(doc: dict) -> tuple[str, int, str]:
-        para_str = _get_doc_para_num(doc)
-        m = re.match(r"([A-Za-z]*)(\d+)([A-Za-z]*)", para_str)
-        if m:
-            return (m.group(1), int(m.group(2)), m.group(3))
-        return ("ZZ", 999999, "")
 
     docs = sorted(docs, key=_extract_num)
 
@@ -260,88 +422,19 @@ def _render_evidence_panel() -> None:
         if not group_docs:
             continue
 
-        total_count = len(group_docs)
-        is_ie_group = group_name == "📋 적용사례(IE)"
-
         # cluster-first 보너스 적용 후 점수 재정렬
         group_docs = _apply_cluster_first_bonus(group_docs)
         group_docs.sort(key=lambda d: d.get("score", 0.0), reverse=True)
 
-        # ── IE 그룹: 사례별 expander + 더보기 ──
-        if is_ie_group:
-            st.markdown(f"### {group_name} — {total_count}건")
-
-            seen_cases: set[str] = set()
-            case_order: list[str] = []
-            no_case_docs: list[dict] = []
-            for d in group_docs:
-                raw_cgt = d.get("case_group_title", "")
-                cgt = _normalize_case_group_title(raw_cgt) if raw_cgt else ""
-                if not cgt:
-                    no_case_docs.append(d)
-                elif cgt not in seen_cases:
-                    seen_cases.add(cgt)
-                    case_order.append(cgt)
-
-            # 모든 사례 문서를 1번 DB 쿼리 후 분류
-            all_ie_docs = fetch_ie_case_docs(tuple(case_order)) if case_order else []
-            case_docs_map: dict[str, list[dict]] = {}
-            for doc in all_ie_docs:
-                raw_cgt = doc.get("case_group_title", "")
-                cgt_key = _normalize_case_group_title(raw_cgt) if raw_cgt else ""
-                if cgt_key:
-                    case_docs_map.setdefault(cgt_key, []).append(doc)
-
-            INITIAL_CASES = 3
-            main_cases = case_order[:INITIAL_CASES]
-            rest_cases = case_order[INITIAL_CASES:]
-
-            doc_idx = 0
-            for cgt in main_cases:
-                case_docs = sorted(case_docs_map.get(cgt, []), key=_extract_num)
-                with st.expander(f"📎 {cgt}  ({len(case_docs)}건)", expanded=False):
-                    for doc in case_docs:
-                        _render_document_expander(doc, doc_index=doc_idx)
-                        doc_idx += 1
-
-            if rest_cases or no_case_docs:
-                st.markdown(
-                    "<div style='border-top:1.5px dashed #b8cef0; "
-                    "margin:1.25rem 0 0.25rem;'></div>",
-                    unsafe_allow_html=True,
-                )
-                with st.expander(
-                    f"📂 다른 사례 더보기 ({len(rest_cases) + len(no_case_docs)}건)",
-                    expanded=False,
-                ):
-                    with st.container(border=True):
-                        for cgt in rest_cases:
-                            case_docs = sorted(
-                                case_docs_map.get(cgt, []), key=_extract_num
-                            )
-                            with st.expander(
-                                f"📎 {cgt}  ({len(case_docs)}건)", expanded=False
-                            ):
-                                for doc in case_docs:
-                                    _render_document_expander(doc, doc_index=doc_idx)
-                                    doc_idx += 1
-                        if no_case_docs:
-                            with st.expander(
-                                f"📄 기타 ({len(no_case_docs)}건)", expanded=False
-                            ):
-                                for d in no_case_docs:
-                                    _render_document_expander(d, doc_index=doc_idx)
-                                    doc_idx += 1
+        # IE 적용사례 그룹
+        if group_name == "📋 적용사례(IE)":
+            _render_ie_group(group_name, group_docs)
             continue
 
-        # IE 제외 그룹: h3 헤더 출력
-        st.markdown(f"### {group_name} — {total_count}건")
+        # h3 헤더 (IE 이외 그룹 공통)
+        st.markdown(f"### {group_name} — {len(group_docs)}건")
 
         # 본문/적용지침/BC → 주제별 그룹핑
-        _TOPIC_GROUPABLE: dict[str, tuple[str, ...]] = {
-            "📘 기준서 본문 및 적용지침": ("본문", "적용지침B"),
-            "🔍 결론도출근거(BC)": ("결론도출근거",),
-        }
         if group_name in _TOPIC_GROUPABLE:
             from app.ui.grouping import _render_topic_grouped_docs
 
@@ -356,64 +449,10 @@ def _render_evidence_panel() -> None:
             )
             continue
 
-        # ── QNA/감리사례: PDR 방식 (인용 문서 flat + 보조 더보기) ──
-        _PDR_GROUPS = {"💬 질의회신(QNA)", "🚨 감리지적사례"}
+        # QNA/감리사례
         if group_name in _PDR_GROUPS:
-            unique_parents: dict[str, dict] = {}
-            no_parent_docs: list[dict] = []
-            for d in group_docs:
-                pid = d.get("parent_id", "")
-                if pid:
-                    if pid not in unique_parents:
-                        unique_parents[pid] = d
-                else:
-                    no_parent_docs.append(d)
-
-            pdr_docs = list(unique_parents.values()) + no_parent_docs
-            for i, d in enumerate(pdr_docs):
-                pid = d.get("parent_id", "")
-                if pid:
-                    _render_pdr_expander(
-                        d, doc_index=i, entry_desc=get_desc_for_pdr(pid)
-                    )
-                else:
-                    _render_document_expander(d, doc_index=i)
-
-            # 보조 문서: 해당 소스의 retriever 결과 중 인용 안 된 것 TOP 3
-            _render_supp_extra(sources, 800 + len(pdr_docs))
+            _render_pdr_group(group_name, group_docs)
             continue
 
-        # ── 기타: 상위 3개 표시 + 나머지 "더보기" ──
-        INITIAL = 3
-        initial_docs = group_docs[:INITIAL]
-        rest_docs = group_docs[INITIAL:]
-
-        initial_docs.sort(key=_extract_num)
-        for i, d in enumerate(initial_docs):
-            _render_document_expander(d, doc_index=i)
-
-        if rest_docs:
-            rest_docs.sort(key=_extract_num)
-            with st.expander(f"📂 더보기 ({len(rest_docs)}건)", expanded=False):
-                with st.container(border=True):
-                    for i, d in enumerate(rest_docs):
-                        _render_document_expander(d, doc_index=INITIAL + i)
-
-    # ── AI 답변 페이지: retriever 보조 문서 (인용 안 된 것 TOP 3) ──
-    supp_extra = st.session_state.get("_supp_extra_docs", [])
-    if supp_extra:
-        st.markdown(
-            "<div style='border-top:1.5px dashed #b8cef0; "
-            "margin:1.25rem 0 0.25rem;'></div>",
-            unsafe_allow_html=True,
-        )
-        with st.expander(
-            f"📂 참고할 수 있는 추가 문서 ({len(supp_extra)}건)", expanded=False
-        ):
-            with st.container(border=True):
-                for i, d in enumerate(supp_extra):
-                    pid = d.get("parent_id", "")
-                    if pid:
-                        _render_pdr_expander(d, doc_index=900 + i)
-                    else:
-                        _render_document_expander(d, doc_index=900 + i)
+        # 기타 그룹
+        _render_default_group(group_docs)

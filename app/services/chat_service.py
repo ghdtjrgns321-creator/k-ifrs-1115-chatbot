@@ -111,11 +111,14 @@ async def run_graph_stream(
     if is_situation and matched_topics:
         # 첫 턴: 체크리스트 초기화 + 검색 결과 캐시
         if checklist_state is None:
-            store.set_checklist_state(session_id, {
-                "matched_topics": matched_topics,
-                "checked_items": [],
-                "turn_count": 1,
-            })
+            store.set_checklist_state(
+                session_id,
+                {
+                    "matched_topics": matched_topics,
+                    "checked_items": [],
+                    "turn_count": 1,
+                },
+            )
             # 첫 턴의 relevant_docs를 캐시하여 후속 턴에서 재사용
             relevant_docs = final_state.get("relevant_docs", [])
             if relevant_docs:
@@ -129,10 +132,12 @@ async def run_graph_stream(
                 if role == "ai":
                     last_ai_question = content[:300]
                     break
-            checklist_state.setdefault("checked_items", []).append({
-                "question": last_ai_question,
-                "answer": message,
-            })
+            checklist_state.setdefault("checked_items", []).append(
+                {
+                    "question": last_ai_question,
+                    "answer": message,
+                }
+            )
             store.set_checklist_state(session_id, checklist_state)
     elif not is_situation and checklist_state is not None:
         # 최종 답변 전환: 체크리스트 상태 클리어

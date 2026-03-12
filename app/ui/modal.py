@@ -8,9 +8,14 @@ import html
 
 import streamlit as st
 
-from app.ui.components import _build_self_ids, _get_doc_para_num, _render_para_chips
+from app.ui.components import _build_self_ids, _get_doc_para_num
 from app.ui.db import _expand_para_range, _fetch_para_from_db
-from app.ui.text import _PARA_REF_RE, _normalize_doc_content, _para_ref_to_num, clean_text
+from app.ui.text import (
+    _PARA_REF_RE,
+    _normalize_doc_content,
+    _para_ref_to_num,
+    clean_text,
+)
 
 
 def _render_single_para_in_modal(
@@ -27,6 +32,7 @@ def _render_single_para_in_modal(
         except Exception as exc:
             st.error(f"[오류] 문단 {para_num} DB 조회 실패: {exc}")
             import traceback
+
             st.code(traceback.format_exc(), language="python")
             return []
 

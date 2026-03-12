@@ -5,8 +5,11 @@
 # 데이터이므로 Cohere의 query-document 유사도 판단에 맡기지 않음.
 # IE 적용사례는 generate에서 desc로 대체되므로 수량 제한 불필요.
 import asyncio
+import logging
 
 from app.reranker import rerank_results
+
+logger = logging.getLogger(__name__)
 
 # reranker 최종 반환 수 (pinpoint 제외)
 RERANK_TOP_N = 15
@@ -34,14 +37,24 @@ async def rerank_docs(state: dict) -> dict:
     try:
         # non-pinpoint만 reranker 채점
         reranked = await asyncio.to_thread(
-            rerank_results, query, non_pinpoint, RERANK_TOP_N,
+            rerank_results,
+            query,
+            non_pinpoint,
+            RERANK_TOP_N,
         )
     except Exception as e:
-        print(f"  ⚠️  Reranker 실패 ({type(e).__name__}), 검색 score 순위로 대체", flush=True)
-        reranked = sorted(non_pinpoint, key=lambda d: d.get("score", 0), reverse=True)[:RERANK_TOP_N]
+        logger.warning("Reranker 실패 (%s), 검색 score 순위로 대체", type(e).__name__)
+        reranked = sorted(non_pinpoint, key=lambda d: d.get("score", 0), reverse=True)[
+            :RERANK_TOP_N
+        ]
 
     # pinpoint 1순위 배치 + reranked 2순위
     combined = pinpoint + reranked
-    print(f"[rerank] pinpoint_bypass={len(pinpoint)}, reranked={len(reranked)}, total={len(combined)}")
+    logger.info(
+        "pinpoint_bypass=%d, reranked=%d, total=%d",
+        len(pinpoint),
+        len(reranked),
+        len(combined),
+    )
 
     return {"reranked_docs": combined}

@@ -12,8 +12,8 @@ from typing import TypedDict
 class SectionItem(TypedDict, total=False):
     title: str
     desc: str
-    paras: list[str]       # 본문 문단 번호 (예: ["18", "19"])
-    bc_paras: list[str]    # BC 문단 번호 (예: ["BC77", "BC78"])
+    paras: list[str]  # 본문 문단 번호 (예: ["18", "19"])
+    bc_paras: list[str]  # BC 문단 번호 (예: ["BC77", "BC78"])
 
 
 class MainAndBc(TypedDict):
@@ -24,7 +24,7 @@ class MainAndBc(TypedDict):
 class IECase(TypedDict, total=False):
     title: str
     desc: str
-    para_range: str        # "IE19~IE24"
+    para_range: str  # "IE19~IE24"
     case_group_title: str  # fetch_ie_case_docs용 매칭 키
 
 
@@ -35,7 +35,7 @@ class IESection(TypedDict):
 
 class QNASection(TypedDict):
     summary: str
-    qna_ids: list[str]     # "QNA-xxx" 패턴 parent_id
+    qna_ids: list[str]  # "QNA-xxx" 패턴 parent_id
 
 
 class FindingsSection(TypedDict):
@@ -53,7 +53,9 @@ class TopicData(TypedDict, total=False):
 
 
 # ── JSON에서 토픽 데이터 로드 ─────────────────────────────────────────────────
-_JSON_PATH = Path(__file__).parent.parent.parent / "data" / "topic-curation" / "topics.json"
+_JSON_PATH = (
+    Path(__file__).parent.parent.parent / "data" / "topic-curation" / "topics.json"
+)
 
 TOPIC_CONTENT_MAP: dict[str, TopicData] = {}
 
@@ -86,6 +88,7 @@ _EMPTY_STUB: TopicData = {
 
 # ── 토픽 desc 추출 ──────────────────────────────────────────────────────────
 
+
 def get_topic_descs(topic_name: str) -> str:
     """토픽명으로 topics.json의 main_and_bc + ie 섹션 desc를 수집하여 텍스트 반환.
 
@@ -115,9 +118,11 @@ def get_topic_descs(topic_name: str) -> str:
 # Why: UX3,4 evidence 패널에서 문단번호로 큐레이션 desc를 조회하여 표시
 # 범위 표기("56~58") → 개별 확장하여 각 문단에 동일 desc 매핑
 
+
 def _expand_range(range_str: str) -> list[str]:
     """'56~58' → ['56','57','58'], 'B3~B4' → ['B3','B4']."""
     import re as _re
+
     m = _re.match(r"([A-Za-z]*)(\d+)[~～\-]([A-Za-z]*)(\d+)", range_str)
     if not m:
         return [range_str]
@@ -160,7 +165,9 @@ for _topic_data in TOPIC_CONTENT_MAP.values():
     for _qid, _qdesc in _topic_data.get("qna", {}).get("qna_descs", {}).items():
         if _qid and _qdesc:
             PDR_DESC_INDEX[_qid] = _qdesc
-    for _fid, _fdesc in _topic_data.get("findings", {}).get("finding_descs", {}).items():
+    for _fid, _fdesc in (
+        _topic_data.get("findings", {}).get("finding_descs", {}).items()
+    ):
         if _fid and _fdesc:
             PDR_DESC_INDEX[_fid] = _fdesc
 

@@ -25,13 +25,13 @@ root_path = Path(__file__).parent.parent
 if str(root_path) not in sys.path:
     sys.path.insert(0, str(root_path))
 
-import streamlit as st
+import streamlit as st  # noqa: E402
 
-from app.ui.layout import _inject_css, _render_header, _render_sidebar
-from app.ui.modal import _show_reference_modal
-from app.ui.pages import _render_ai_answer, _render_evidence, _render_home
-from app.ui.session import _init_session
-from app.ui.topic_browse import _render_topic_browse
+from app.ui.layout import _inject_css, _render_header, _render_sidebar  # noqa: E402
+from app.ui.modal import _show_reference_modal  # noqa: E402
+from app.ui.pages import _render_ai_answer, _render_evidence, _render_home  # noqa: E402
+from app.ui.session import _init_session  # noqa: E402
+from app.ui.topic_browse import _render_topic_browse  # noqa: E402
 
 
 def main() -> None:

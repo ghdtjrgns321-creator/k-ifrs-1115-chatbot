@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class Settings(BaseSettings):
     # 1. MongoDB 설정
     mongo_uri: str
@@ -9,9 +10,9 @@ class Settings(BaseSettings):
 
     # 2. API 키 (필수)
     upstage_api_key: str  # 임베딩 전용
-    openai_api_key: str   # LLM 전용
-    cohere_api_key: str   # Reranker 전용 (rerank-multilingual-v3.0)
-    google_api_key: str   # Gemini API
+    openai_api_key: str  # LLM 전용
+    cohere_api_key: str  # Reranker 전용 (rerank-multilingual-v3.0)
+    google_api_key: str  # Gemini API
 
     # 3. LLM 모델 설정
     # Front Nodes (analyze, rewrite, grade): 빠른 분류·평가용 경량 모델
@@ -34,6 +35,15 @@ class Settings(BaseSettings):
     embed_query_model: str = "solar-embedding-1-large-query"
     embed_batch_size: int = 100  # API 과부하 방지용 배치 단위
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # 6. 인프라 설정
+    # CORS: Streamlit(:8501) → FastAPI(:8002) 교차 요청 허용 목록
+    cors_origins: list[str] = ["http://localhost:8501"]
+    # Upstage 임베딩 API 엔드포인트
+    upstage_embed_url: str = "https://api.upstage.ai/v1/solar/embeddings"
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
 
 settings = Settings()

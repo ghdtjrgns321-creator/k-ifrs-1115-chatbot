@@ -10,7 +10,7 @@ import re
 
 import streamlit as st
 
-from app.ui.client import _call_chat, _call_search
+from app.ui.client import _call_chat
 from app.ui.components import _render_evidence_panel
 from app.ui.constants import HOME_TOPICS_LEFT, HOME_TOPICS_RIGHT
 from app.ui.doc_helpers import _format_pdr_content

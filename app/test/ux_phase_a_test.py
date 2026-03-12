@@ -115,7 +115,7 @@ def test_parse_chunk_num():
 
 def test_inverted_mapping():
     """INVERTED_MAPPING 빌드 결과 기본 검증."""
-    from app.services.search_service import QUERY_MAPPING, INVERTED_MAPPING
+    from app.services.query_mapping import QUERY_MAPPING, INVERTED_MAPPING
 
     print("\n[레이어 1-C] INVERTED_MAPPING 빌드 검증")
     all_pass = True
@@ -164,7 +164,8 @@ def test_inverted_mapping():
 
 def test_run_search_hit():
     """QUERY_MAPPING exact match hit — LLM 호출 없이 공식 용어로 확장되어야 함."""
-    from app.services.search_service import run_search, QUERY_MAPPING
+    from app.services.search_service import run_search
+    from app.services.query_mapping import QUERY_MAPPING
     from app.services.session_store import SessionStore
 
     store = SessionStore()

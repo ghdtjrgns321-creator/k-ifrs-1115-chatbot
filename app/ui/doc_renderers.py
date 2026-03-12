@@ -125,7 +125,7 @@ def _render_document_expander(
         if para_num:
             st.markdown(
                 f'<span style="display:inline-block; background:#e0e7ff; color:#3730a3; '
-                f'font-size:0.8em; font-weight:600; padding:2px 8px; border-radius:4px; '
+                f"font-size:0.8em; font-weight:600; padding:2px 8px; border-radius:4px; "
                 f'margin-bottom:0.5rem;">[문단 {html.escape(para_num)}]</span>',
                 unsafe_allow_html=True,
             )
@@ -144,9 +144,7 @@ def _render_document_expander(
         _render_para_chips(normalized, label, doc_index, self_ids)
 
         # 출처 경로 푸터
-        st.html(
-            f'<div class="source-footer">📍 {html.escape(_esc(hierarchy))}</div>'
-        )
+        st.html(f'<div class="source-footer">📍 {html.escape(_esc(hierarchy))}</div>')
 
 
 # ── QNA/감리사례 PDR 문서 카드 ─────────────────────────────────────────────────
@@ -177,8 +175,8 @@ def _render_pdr_expander(
             _desc = re.sub(r"\. (?=[가-힣A-Z\[*])", ".<br>", _desc)
             st.markdown(
                 f'<div style="line-height:1.75; color:#475569; font-size:0.85em; '
-                f'padding:0.5rem 0.75rem; margin-bottom:0.5rem; '
-                f'border-left:3px solid #94A3B8; border-radius:4px; '
+                f"padding:0.5rem 0.75rem; margin-bottom:0.5rem; "
+                f"border-left:3px solid #94A3B8; border-radius:4px; "
                 f'background:#F8FAFC;">{_desc}</div>',
                 unsafe_allow_html=True,
             )
@@ -195,7 +193,7 @@ def _render_pdr_expander(
                 cleaned = clean_text(adjusted)
                 st.markdown(
                     f'<div style="line-height:1.85; font-size:0.93em;">'
-                    f'{cleaned.replace(chr(10), "<br>")}</div>',
+                    f"{cleaned.replace(chr(10), '<br>')}</div>",
                     unsafe_allow_html=True,
                 )
             else:
@@ -204,11 +202,13 @@ def _render_pdr_expander(
             fallback = child_doc.get("text") or child_doc.get("content", "")
             if fallback:
                 raw_content = fallback
-                normalized = _normalize_doc_content(fallback, child_doc.get("source", ""))
+                normalized = _normalize_doc_content(
+                    fallback, child_doc.get("source", "")
+                )
                 cleaned = clean_text(normalized)
                 st.markdown(
                     f'<div style="line-height:1.85; font-size:0.93em;">'
-                    f'{cleaned.replace(chr(10), "<br>")}</div>',
+                    f"{cleaned.replace(chr(10), '<br>')}</div>",
                     unsafe_allow_html=True,
                 )
             else:
@@ -218,10 +218,7 @@ def _render_pdr_expander(
             _render_para_chips(raw_content, label, doc_index)
 
         # 출처 경로 — 유일한 1개
-        st.html(
-            f'<div class="source-footer">'
-            f'📍 {html.escape(_esc(hierarchy))}</div>'
-        )
+        st.html(f'<div class="source-footer">📍 {html.escape(_esc(hierarchy))}</div>')
 
 
 # ── IE 적용사례 그룹핑 렌더링 ──────────────────────────────────────────────────

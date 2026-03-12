@@ -7,6 +7,7 @@
 import json
 import math
 from pathlib import Path
+
 # ── 서머리 매칭 기본 임계값 ────────────────────────────────────────────────────
 # 코사인 유사도 기반 — 0.5 이상이면 같은 주제로 판단
 _DEFAULT_QNA_THRESHOLD = 0.5
@@ -16,11 +17,18 @@ _DEFAULT_IE_THRESHOLD = 0.5
 _DEFAULT_IE_MAX = 5
 
 # ── 임베딩 데이터 Lazy 로드 ──────────────────────────────────────────────────
-_EMBEDDINGS_PATH = Path(__file__).parent.parent.parent / "data" / "topic-curation" / "summary-embeddings.json"
+_EMBEDDINGS_PATH = (
+    Path(__file__).parent.parent.parent
+    / "data"
+    / "topic-curation"
+    / "summary-embeddings.json"
+)
 
-_qna_entries: dict[str, dict] | None = None      # {id: {desc, topic, embedding}}
+_qna_entries: dict[str, dict] | None = None  # {id: {desc, topic, embedding}}
 _finding_entries: dict[str, dict] | None = None
-_ie_entries: dict[str, dict] | None = None        # {id: {desc, topic, title, para_range, embedding}}
+_ie_entries: dict[str, dict] | None = (
+    None  # {id: {desc, topic, title, para_range, embedding}}
+)
 
 
 def _load():
@@ -33,7 +41,11 @@ def _load():
         return
     raw = json.loads(_EMBEDDINGS_PATH.read_text(encoding="utf-8"))
     for doc_id, data in raw.items():
-        entry = {"embedding": data["embedding"], "topic": data["topic"], "desc": data["desc"]}
+        entry = {
+            "embedding": data["embedding"],
+            "topic": data["topic"],
+            "desc": data["desc"],
+        }
         if data["type"] == "qna":
             _qna_entries[doc_id] = entry
         elif data["type"] == "finding":
@@ -51,6 +63,7 @@ def _ensure_loaded():
 
 # ── 코사인 유사도 ─────────────────────────────────────────────────────────────
 
+
 def cosine_similarity(a: list, b: list) -> float:
     """두 벡터의 코사인 유사도. numpy 없이 순수 Python."""
     dot = sum(x * y for x, y in zip(a, b))
@@ -62,6 +75,7 @@ def cosine_similarity(a: list, b: list) -> float:
 
 
 # ── 매칭 함수 ─────────────────────────────────────────────────────────────────
+
 
 def match_qna_by_summary(
     query_vector: list[float],
@@ -126,13 +140,15 @@ def match_ie_by_summary(
     for ie_id, entry in _ie_entries.items():
         sim = cosine_similarity(query_vector, entry["embedding"])
         if sim >= threshold:
-            scored.append({
-                "title": entry["title"],
-                "para_range": entry["para_range"],
-                "topic": entry["topic"],
-                "desc": entry["desc"],
-                "score": round(sim, 4),
-            })
+            scored.append(
+                {
+                    "title": entry["title"],
+                    "para_range": entry["para_range"],
+                    "topic": entry["topic"],
+                    "desc": entry["desc"],
+                    "score": round(sim, 4),
+                }
+            )
 
     scored.sort(key=lambda x: x["score"], reverse=True)
     return scored[:max_count]

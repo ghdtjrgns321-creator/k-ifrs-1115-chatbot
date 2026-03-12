@@ -46,7 +46,9 @@ def _call_search(query: str) -> None:
             st.rerun()
 
         except httpx.ConnectError:
-            st.error("서버에 연결할 수 없습니다. FastAPI 서버가 실행 중인지 확인하세요.")
+            st.error(
+                "서버에 연결할 수 없습니다. FastAPI 서버가 실행 중인지 확인하세요."
+            )
         except Exception as e:
             st.error(f"검색 중 오류가 발생했습니다: {e}")
 
@@ -95,7 +97,9 @@ def _call_chat(question: str, use_cache: bool = False) -> None:
 
                         if event_type == "status":
                             step = event.get("step", "")
-                            label = _STEP_LABELS.get(step, event.get("message", "처리 중..."))
+                            label = _STEP_LABELS.get(
+                                step, event.get("message", "처리 중...")
+                            )
                             pct = _STEP_PROGRESS.get(step, 0)
                             status.update(label=f"{label} ({pct}%)")
 
@@ -105,7 +109,9 @@ def _call_chat(question: str, use_cache: bool = False) -> None:
                             findings_case = event.get("findings_case")
                             follow_up_questions = event.get("follow_up_questions") or []
                             st.session_state.session_id = event.get("session_id")
-                            st.session_state.is_situation = event.get("is_situation", False)
+                            st.session_state.is_situation = event.get(
+                                "is_situation", False
+                            )
                             # 자유 입력 시에도 좌측 근거 패널을 채웁니다
                             new_docs = event.get("retrieved_docs") or []
                             if new_docs:
@@ -126,7 +132,9 @@ def _call_chat(question: str, use_cache: bool = False) -> None:
 
         except httpx.HTTPStatusError as e:
             status.update(label="서버 오류", state="error")
-            st.error(f"서버 오류 ({e.response.status_code}): 잠시 후 다시 시도해주세요.")
+            st.error(
+                f"서버 오류 ({e.response.status_code}): 잠시 후 다시 시도해주세요."
+            )
             return
         except httpx.TimeoutException:
             status.update(label="응답 시간 초과", state="error")
@@ -134,7 +142,9 @@ def _call_chat(question: str, use_cache: bool = False) -> None:
             return
         except httpx.ConnectError:
             status.update(label="서버 연결 실패", state="error")
-            st.error("서버에 연결할 수 없습니다. FastAPI 서버가 실행 중인지 확인하세요.")
+            st.error(
+                "서버에 연결할 수 없습니다. FastAPI 서버가 실행 중인지 확인하세요."
+            )
             return
 
     # 스트리밍 성공 후에만 ai_answer 화면으로 전환합니다.

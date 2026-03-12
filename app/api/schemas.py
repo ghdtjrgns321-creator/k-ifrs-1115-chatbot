@@ -39,9 +39,7 @@ class DocResult(BaseModel):
 
     source: str  # "본문", "적용지침B", "질의회신", "감리사례", ...
     hierarchy: str  # breadcrumb (예: "[문단 59] 변동대가")
-    title: str = (
-        ""  # LLM 생성 제목 (08-generate-titles.py 마이그레이션). 없으면 "" → 프론트가 hierarchy로 폴백
-    )
+    title: str = ""  # LLM 생성 제목 (08-generate-titles.py 마이그레이션). 없으면 "" → 프론트가 hierarchy로 폴백
     content: str  # 자식 청크 미리보기 (아코디언 헤더에 표시)
     full_content: str  # 부모 원문 전체 (아코디언 펼침 시 표시)
     related_paragraphs: list[str]  # 관련 문단 번호 리스트

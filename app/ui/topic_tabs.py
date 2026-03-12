@@ -66,8 +66,8 @@ def _summary_box(text: str) -> None:
         return
     st.markdown(
         f'<div style="line-height:1.75; color:#1e3a5f; font-size:0.9em; '
-        f'padding:0.6rem 0.85rem; background:#eef6ff; '
-        f'border-left:3px solid #93c5fd; border-radius:4px; '
+        f"padding:0.6rem 0.85rem; background:#eef6ff; "
+        f"border-left:3px solid #93c5fd; border-radius:4px; "
         f'margin-bottom:0.5rem;">{_md_to_html(text)}</div>',
         unsafe_allow_html=True,
     )
@@ -79,9 +79,9 @@ def _desc_blockquote(desc: str) -> None:
         return
     st.markdown(
         f'<div style="line-height:1.75; color:#475569; font-size:0.88em; '
-        f'padding:0.5rem 0.75rem; background:#f8fafc; '
+        f"padding:0.5rem 0.75rem; background:#f8fafc; "
         f'border-left:2px solid #cbd5e1; border-radius:2px;">'
-        f'{_md_to_html(desc)}</div>'
+        f"{_md_to_html(desc)}</div>"
         f'<hr style="border:none; border-top:1px solid #e2e8f0; margin:0.4rem 0 0.2rem;">',
         unsafe_allow_html=True,
     )
@@ -110,7 +110,7 @@ def _strip_context_prefix(text: str, para_num: str = "") -> str:
             f"[문단{para_num}]",
         ):
             if text.startswith(prefix):
-                text = text[len(prefix):].strip()
+                text = text[len(prefix) :].strip()
                 break
 
     # ~ 취소선 방지: 숫자/알파벳 사이의 ~ → 전각 ～
@@ -134,7 +134,7 @@ def _render_para_expander(doc: dict, idx: int = 0) -> None:
         if para_num:
             st.markdown(
                 f'<span style="display:inline-block; background:#e0e7ff; color:#3730a3; '
-                f'font-size:0.8em; font-weight:600; padding:2px 8px; border-radius:4px; '
+                f"font-size:0.8em; font-weight:600; padding:2px 8px; border-radius:4px; "
                 f'margin-bottom:0.5rem;">[문단 {_html.escape(para_num)}]</span>',
                 unsafe_allow_html=True,
             )
@@ -157,9 +157,7 @@ def _render_para_expander(doc: dict, idx: int = 0) -> None:
             )
 
 
-def _render_preview_captions(
-    para_ids: list[str], para_index: dict[str, dict]
-) -> None:
+def _render_preview_captions(para_ids: list[str], para_index: dict[str, dict]) -> None:
     """접힌 expander 아래에 최대 3개 미리보기 캡션 + "..."을 표시합니다."""
     titles: list[str] = []
     for p in para_ids:
@@ -180,7 +178,9 @@ def _render_preview_captions(
             'line-height:1.4; margin:0 0 3px 0.25rem;">...</div>'
         )
     # expander 아래 적절한 간격 유지
-    st.html(f'<div style="margin-top:-0.25rem; margin-bottom:0.15rem;">{html_parts}</div>')
+    st.html(
+        f'<div style="margin-top:-0.25rem; margin-bottom:0.15rem;">{html_parts}</div>'
+    )
 
 
 def _collect_expanded_ids(sections: list[dict]) -> list[str]:
@@ -359,7 +359,7 @@ def _render_qna_tab(data: dict) -> None:
                 if hier_path:
                     st.markdown(
                         f'<div style="font-size:0.78em; color:#6b7280; background:#f1f5f9; '
-                        f'display:inline-block; padding:2px 10px; border-radius:12px; '
+                        f"display:inline-block; padding:2px 10px; border-radius:12px; "
                         f'margin-bottom:0.5rem;">🏷️ {_html.escape(hier_path)}</div>',
                         unsafe_allow_html=True,
                     )
@@ -373,7 +373,7 @@ def _render_qna_tab(data: dict) -> None:
 
                 st.html(
                     f'<div class="source-footer">📍 출처 경로: '
-                    f'{_html.escape(hierarchy)}</div>'
+                    f"{_html.escape(hierarchy)}</div>"
                 )
         else:
             with st.expander(f":material/description: {qna_id}", expanded=False):
@@ -439,7 +439,7 @@ def _render_findings_tab(data: dict) -> None:
                 if hier_path:
                     st.markdown(
                         f'<div style="font-size:0.78em; color:#6b7280; background:#f1f5f9; '
-                        f'display:inline-block; padding:2px 10px; border-radius:12px; '
+                        f"display:inline-block; padding:2px 10px; border-radius:12px; "
                         f'margin-bottom:0.5rem;">🏷️ {_html.escape(hier_path)}</div>',
                         unsafe_allow_html=True,
                     )
@@ -453,7 +453,7 @@ def _render_findings_tab(data: dict) -> None:
 
                 st.html(
                     f'<div class="source-footer">📍 출처 경로: '
-                    f'{_html.escape(hierarchy)}</div>'
+                    f"{_html.escape(hierarchy)}</div>"
                 )
         else:
             with st.expander(f":material/description: {fid}", expanded=False):

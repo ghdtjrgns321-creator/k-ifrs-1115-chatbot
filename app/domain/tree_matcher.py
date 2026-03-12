@@ -20,18 +20,22 @@ def match_topics(standalone_query: str, search_keywords: list[str]) -> list[dict
 
     for topic_name, data in MASTER_DECISION_TREES.items():
         routing = data["1_routing"]
-        score = _calc_score(standalone_query, search_keywords, routing["trigger_keywords"])
+        score = _calc_score(
+            standalone_query, search_keywords, routing["trigger_keywords"]
+        )
         if score > 0:
-            candidates.append({
-                "topic_name": topic_name,
-                "checklist_text": _format_checklist(topic_name, data),
-                "checklist": data["2_checklist"],
-                "judgment_goal": routing["judgment_goal"],
-                "precedents": data.get("4_precedents", {}),
-                "red_flags": data.get("5_red_flags", {}),
-                "calculation_formula": data.get("6_calculation_formula"),
-                "score": score,
-            })
+            candidates.append(
+                {
+                    "topic_name": topic_name,
+                    "checklist_text": _format_checklist(topic_name, data),
+                    "checklist": data["2_checklist"],
+                    "judgment_goal": routing["judgment_goal"],
+                    "precedents": data.get("4_precedents", {}),
+                    "red_flags": data.get("5_red_flags", {}),
+                    "calculation_formula": data.get("6_calculation_formula"),
+                    "score": score,
+                }
+            )
 
     # score 내림차순 → 상위 3개 (멀티토픽: 3개 이상 쟁점 지원)
     candidates.sort(key=lambda x: x["score"], reverse=True)
@@ -39,6 +43,7 @@ def match_topics(standalone_query: str, search_keywords: list[str]) -> list[dict
 
 
 # ── 매칭 점수 계산 ──────────────────────────────────────────────
+
 
 def _calc_score(query: str, keywords: list[str], triggers: list[str]) -> float:
     """양방향 부분 문자열 매칭으로 점수를 산출합니다.
@@ -74,6 +79,7 @@ def _calc_score(query: str, keywords: list[str], triggers: list[str]) -> float:
 
 # ── 통합 포맷팅 ──────────────────────────────────────────────────
 
+
 def _format_checklist(topic_name: str, data: dict) -> str:
     """MASTER_DECISION_TREES 항목을 통합 체크리스트 텍스트로 포맷합니다.
 
@@ -99,7 +105,9 @@ def _format_checklist(topic_name: str, data: dict) -> str:
     if red_flags:
         lines.append("")
         lines.append(red_flags["warning_prefix"])
-        for branch_label, questions in red_flags.get("check_items_by_branch", {}).items():
+        for branch_label, questions in red_flags.get(
+            "check_items_by_branch", {}
+        ).items():
             lines.append(f"  {branch_label}:")
             for q in questions:
                 lines.append(f"    {q}")

@@ -7,9 +7,12 @@
 #   2순위: analyze_agent의 search_keywords + QUERY_MAPPING + 체크리스트 문단으로 하이브리드 검색
 #          → 핀포인트가 커버 못하는 본문 조항/적용지침 보충
 import asyncio
+import logging
 import re
 
 from app.retriever import search_all, fetch_pinpoint_docs
+
+logger = logging.getLogger(__name__)
 
 # RRF 최종 반환 문서 수 — reranker가 이 중 상위 N개를 선별
 RETRIEVAL_LIMIT = 30
@@ -22,7 +25,7 @@ def _expand_with_query_mapping(text: str) -> list[str]:
     적용지침(B문단) 검색이 누락됨. 사용자 원문에 포함된 실무 용어("쿠폰", "적립금", "멤버십")를
     QUERY_MAPPING으로 확장하면 어떤 실무 용어든 관련 조항이 자동으로 검색됨.
     """
-    from app.services.search_service import QUERY_MAPPING
+    from app.services.query_mapping import QUERY_MAPPING
 
     expanded: list[str] = []
     seen: set[str] = set()
@@ -68,7 +71,8 @@ def _extract_checklist_keywords(matched_topics: list[dict]) -> list[str]:
 
 
 def _merge_pinpoint_and_retriever(
-    pinpoint_docs: list[dict], retriever_docs: list[dict],
+    pinpoint_docs: list[dict],
+    retriever_docs: list[dict],
 ) -> list[dict]:
     """핀포인트(1순위) + 리트리버(2순위) 문서를 중복 제거하여 병합합니다.
 
@@ -129,6 +133,7 @@ async def retrieve_docs(state: dict) -> dict:
 
     # 사용자 원문에서 실무 용어 → 공식 용어 자동 확장
     from app.nodes.generate import _get_last_human_message
+
     messages = state.get("messages", [])
     original_text = _get_last_human_message(messages) or state["standalone_query"]
 
@@ -148,8 +153,18 @@ async def retrieve_docs(state: dict) -> dict:
     merged = _merge_pinpoint_and_retriever(pinpoint_docs, retriever_docs)
 
     # 진단 로그: 각 계층별 문서 수 + pinpoint 상세
-    print(f"[retrieve] pinpoint={len(pinpoint_docs)}, retriever={len(retriever_docs)}, merged={len(merged)}")
+    logger.info(
+        "pinpoint=%d, retriever=%d, merged=%d",
+        len(pinpoint_docs),
+        len(retriever_docs),
+        len(merged),
+    )
     for doc in pinpoint_docs:
-        print(f"  [pinpoint] {doc['chunk_id']} | {doc['source']} | {doc.get('hierarchy', '')[:60]}")
+        logger.debug(
+            "  pinpoint: %s | %s | %s",
+            doc["chunk_id"],
+            doc["source"],
+            doc.get("hierarchy", "")[:60],
+        )
 
     return {"retrieved_docs": merged}

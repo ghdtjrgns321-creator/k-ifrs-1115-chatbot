@@ -69,7 +69,7 @@ def render_cross_links(cross_links: list[str], current_topic: str) -> None:
 
     if st.session_state.pop("_xlink_scroll_top", False):
         components.html(
-            '<script>window.parent.document.querySelector('
+            "<script>window.parent.document.querySelector("
             '"[data-testid=\\"stAppViewContainer\\"]"'
             ").scrollTo(0,0);</script>",
             height=0,

@@ -5,15 +5,15 @@ from app.config import settings
 from app.embeddings import embed_query_sync
 
 # ── 상수 ────────────────────────────────────────────────────────────────────────
-QNA_PARENT_COLL      = "k-ifrs-1115-qna-parents"
+QNA_PARENT_COLL = "k-ifrs-1115-qna-parents"
 FINDINGS_PARENT_COLL = "k-ifrs-1115-findings-parents"
-KAI_PARENT_COLL      = "k-ifrs-1115-kai-parents"
+KAI_PARENT_COLL = "k-ifrs-1115-kai-parents"
 
-VECTOR_TOP_K        = 100  # 후보 풀 확장
-RRF_K               = 60   # RRF 논문 권장값
-QNA_SUPPLEMENT      = 15   # QNA 보조 최대 추가 수
-FINDINGS_SUPPLEMENT = 15   # 감리사례 보조 최대 추가 수
-KAI_SUPPLEMENT      = 5    # 교육자료 보조 최대 추가 수
+VECTOR_TOP_K = 100  # 후보 풀 확장
+RRF_K = 60  # RRF 논문 권장값
+QNA_SUPPLEMENT = 15  # QNA 보조 최대 추가 수
+FINDINGS_SUPPLEMENT = 15  # 감리사례 보조 최대 추가 수
+KAI_SUPPLEMENT = 5  # 교육자료 보조 최대 추가 수
 
 
 # ── Lazy 초기화 ──────────────────────────────────────────────────────────────────
@@ -38,6 +38,7 @@ def _generate_hypothetical_doc(query: str) -> str:
     """
     from app.agents import hyde_agent
     from app.prompts import HYDE_PROMPT
+
     try:
         result = hyde_agent.run_sync(HYDE_PROMPT.format(query=query))
         return result.output.strip() if result.output else query
@@ -46,6 +47,7 @@ def _generate_hypothetical_doc(query: str) -> str:
 
 
 # ── 개별 검색 함수 ───────────────────────────────────────────────────────────────
+
 
 def _search_vector(query_vector: list, limit: int) -> list[dict]:
     """Atlas Vector Search: 전체 컬렉션에서 의미 유사도 검색."""
@@ -67,12 +69,12 @@ def _search_vector(query_vector: list, limit: int) -> list[dict]:
 def _tokenize_ko(text: str) -> list[str]:
     """한국어 텍스트를 BM25용 토큰 리스트로 변환합니다."""
     tokens: list[str] = []
-    for word in re.findall(r'[가-힣]+', text):
+    for word in re.findall(r"[가-힣]+", text):
         if len(word) == 1:
             tokens.append(word)
         else:
-            tokens.extend(word[i:i+2] for i in range(len(word) - 1))
-    tokens.extend(t.lower() for t in re.findall(r'[a-zA-Z0-9]+', text))
+            tokens.extend(word[i : i + 2] for i in range(len(word) - 1))
+    tokens.extend(t.lower() for t in re.findall(r"[a-zA-Z0-9]+", text))
     return tokens
 
 
@@ -113,9 +115,10 @@ def _search_keyword(query: str, limit: int) -> list[dict]:
 
 # ── RRF 융합 ─────────────────────────────────────────────────────────────────────
 
+
 def _parse_chunk_num(chunk_id: str) -> tuple[str, int] | None:
     """청크 ID에서 섹션 prefix와 번호를 분리합니다."""
-    m = re.match(r'^([\w]+-[A-Z]{0,2})(\d+)$', chunk_id)
+    m = re.match(r"^([\w]+-[A-Z]{0,2})(\d+)$", chunk_id)
     return (m.group(1), int(m.group(2))) if m else None
 
 
@@ -133,7 +136,8 @@ def _apply_window_boost(fused: dict, window: int = 3, boost: float = 0.15) -> No
             continue
         for num_i, cid_i in items:
             cluster_count = sum(
-                1 for num_j, _ in items
+                1
+                for num_j, _ in items
                 if num_j != num_i and abs(num_j - num_i) <= window
             )
             if cluster_count >= 1:
@@ -142,8 +146,10 @@ def _apply_window_boost(fused: dict, window: int = 3, boost: float = 0.15) -> No
 
 def _fuse_rrf(v_results: list[dict], k_results: list[dict], final_k: int) -> list[dict]:
     """RRF로 벡터 + 키워드 결과를 융합하고 도메인 가중치를 적용합니다."""
-    v_score_map = {doc.get("chunk_id", f"v_{i}"): doc.get("score", 0.0)
-                   for i, doc in enumerate(v_results)}
+    v_score_map = {
+        doc.get("chunk_id", f"v_{i}"): doc.get("score", 0.0)
+        for i, doc in enumerate(v_results)
+    }
 
     fused: dict[str, dict] = {}
 
@@ -184,6 +190,7 @@ def _fuse_rrf(v_results: list[dict], k_results: list[dict], final_k: int) -> lis
 
 # ── PDR Lookup ───────────────────────────────────────────────────────────────────
 
+
 def _classify_source(parent_id: str | None, category: str = "") -> str:
     """parent_id 접두어와 category로 문서 출처를 결정합니다."""
     if parent_id:
@@ -216,37 +223,45 @@ def _docs_from_fused(fused_docs: list[dict]) -> list[dict]:
     for doc in fused_docs:
         parent_id = doc.get("parent_id")
         source = _classify_source(parent_id, doc.get("category", ""))
-        results.append({
-            "source":             source,
-            "chunk_id":           doc.get("chunk_id", ""),
-            "parent_id":          parent_id,
-            "category":           doc.get("category", ""),
-            "chunk_type":         doc.get("chunk_type", ""),
-            "content":            doc.get("text", ""),
-            "full_content":       _get_parent_content(parent_id, source) if source != "본문" else "",
-            "title":              doc.get("title", ""),
-            "case_group_title":   doc.get("case_group_title", ""),
-            "score":              doc.get("score", 0.0),
-            "vector_score":       doc.get("vector_score", 0.0),
-            "related_paragraphs": doc.get("related_paragraphs", []),
-            "hierarchy":          doc.get("hierarchy", ""),
-        })
+        results.append(
+            {
+                "source": source,
+                "chunk_id": doc.get("chunk_id", ""),
+                "parent_id": parent_id,
+                "category": doc.get("category", ""),
+                "chunk_type": doc.get("chunk_type", ""),
+                "content": doc.get("text", ""),
+                "full_content": _get_parent_content(parent_id, source)
+                if source != "본문"
+                else "",
+                "title": doc.get("title", ""),
+                "case_group_title": doc.get("case_group_title", ""),
+                "score": doc.get("score", 0.0),
+                "vector_score": doc.get("vector_score", 0.0),
+                "related_paragraphs": doc.get("related_paragraphs", []),
+                "hierarchy": doc.get("hierarchy", ""),
+            }
+        )
     return results
 
 
 # ── 핀포인트 문서 직접 조회 ──────────────────────────────────────────────────
 
+
 def _expand_paragraph_range(ref: str) -> list[str]:
     """'B77~B79' → ['B77', 'B78', 'B79']. 20개 초과 범위는 무시."""
     stripped = ref.strip()
     # 소수점 범위: "한129.1~5" → 한129.1, 한129.2, ..., 한129.5
-    m_dot = re.match(r'^(.+?)(\d+)\.(\d+)\s*[~～\-]\s*(\d+)$', stripped)
+    m_dot = re.match(r"^(.+?)(\d+)\.(\d+)\s*[~～\-]\s*(\d+)$", stripped)
     if m_dot:
         prefix, base = m_dot.group(1), m_dot.group(2)
         start, end = int(m_dot.group(3)), int(m_dot.group(4))
         if start <= end and (end - start) <= 20:
             return [f"{prefix}{base}.{n}" for n in range(start, end + 1)]
-    m = re.match(r'^([A-Za-z\uac00-\ud7a3]*)(\d+)\s*[~～\-]\s*[A-Za-z\uac00-\ud7a3]*(\d+)$', stripped)
+    m = re.match(
+        r"^([A-Za-z\uac00-\ud7a3]*)(\d+)\s*[~～\-]\s*[A-Za-z\uac00-\ud7a3]*(\d+)$",
+        stripped,
+    )
     if m:
         prefix, start, end = m.group(1), int(m.group(2)), int(m.group(3))
         if start <= end and (end - start) <= 20:
@@ -260,14 +275,20 @@ def _parse_doc_ids_from_text(text: str) -> dict[str, list[str]]:
     Why: precedents/red_flags 텍스트에는 [QNA-SSI-36917], [IE 사례 2, 3] 등의
     참조가 하드코딩되어 있는데, 이를 파싱해서 MongoDB에서 원문을 직접 가져오기 위함.
     """
-    ids: dict[str, list[str]] = {"qna": [], "findings": [], "edu": [], "ie_cases": [], "paragraphs": []}
+    ids: dict[str, list[str]] = {
+        "qna": [],
+        "findings": [],
+        "edu": [],
+        "ie_cases": [],
+        "paragraphs": [],
+    }
     seen: set[str] = set()
 
     # (문단 XX) 패턴에서 기준서 문단 번호 추출
     # "문단 59, 87" 같은 콤마 구분도 처리: 첫 번호 + 후속 콤마 번호까지 캡처
     for m in re.finditer(
-        r'문단\s+([A-Z]*\d+(?:[A-Z])?(?:\s*[~～\-]\s*[A-Z]*\d+(?:[A-Z])?)?)'
-        r'((?:\s*,\s*[A-Z]*\d+(?:[A-Z])?(?:\s*[~～\-]\s*[A-Z]*\d+(?:[A-Z])?)?)*)',
+        r"문단\s+([A-Z]*\d+(?:[A-Z])?(?:\s*[~～\-]\s*[A-Z]*\d+(?:[A-Z])?)?)"
+        r"((?:\s*,\s*[A-Z]*\d+(?:[A-Z])?(?:\s*[~～\-]\s*[A-Z]*\d+(?:[A-Z])?)?)*)",
         text,
     ):
         first_ref = m.group(1)
@@ -282,16 +303,16 @@ def _parse_doc_ids_from_text(text: str) -> dict[str, list[str]]:
                     ids["paragraphs"].append(p)
 
     # [XXX] 패턴에서 괄호 내용 추출
-    brackets = re.findall(r'\[([^\]]+)\]', text)
+    brackets = re.findall(r"\[([^\]]+)\]", text)
 
     for bracket in brackets:
         # "연계" 접미사 제거
-        clean = re.sub(r'\s*연계$', '', bracket).strip()
+        clean = re.sub(r"\s*연계$", "", bracket).strip()
         if not clean:
             continue
 
         # BC 문단 참조 (본문 컬렉션 chunk_id: 1115-BC285)
-        bc_match = re.match(r'^BC(\d+[A-Z]*)$', clean)
+        bc_match = re.match(r"^BC(\d+[A-Z]*)$", clean)
         if bc_match:
             bc_id = f"BC{bc_match.group(1)}"
             if bc_id not in seen:
@@ -303,7 +324,8 @@ def _parse_doc_ids_from_text(text: str) -> dict[str, list[str]]:
         if clean.startswith("IE 사례"):
             # QNA/FSS 등 명시적 ID를 먼저 추출하여 제거
             named_refs = re.findall(
-                r'(QNA-[\w-]+|FSS-CASE-[\w-]+|KICPA-CASE-[\w-]+|EDU-[\w-]+)', clean,
+                r"(QNA-[\w-]+|FSS-CASE-[\w-]+|KICPA-CASE-[\w-]+|EDU-[\w-]+)",
+                clean,
             )
             for sub in named_refs:
                 _add_ref(sub, ids, seen)
@@ -315,9 +337,9 @@ def _parse_doc_ids_from_text(text: str) -> dict[str, list[str]]:
 
             # "IE 사례 20, 21" → 숫자(+알파벳접미사) 추출
             # 5자리 이상 숫자는 QNA/FSS ID 잔재일 수 있으므로 제외
-            for num in re.findall(r'(\d+[A-Z]?(?:-[A-Z])?)', ie_only):
+            for num in re.findall(r"(\d+[A-Z]?(?:-[A-Z])?)", ie_only):
                 # 순수 숫자가 5자리 이상이면 QNA 번호 잔재 → 스킵
-                digits = re.match(r'(\d+)', num).group(1)
+                digits = re.match(r"(\d+)", num).group(1)
                 if len(digits) >= 5:
                     continue
                 key = f"IE_{num}"
@@ -335,7 +357,7 @@ def _parse_doc_ids_from_text(text: str) -> dict[str, list[str]]:
 
         for part in parts:
             part = part.strip()
-            part = re.sub(r'\s*연계$', '', part).strip()
+            part = re.sub(r"\s*연계$", "", part).strip()
             if not part:
                 continue
 
@@ -352,7 +374,7 @@ def _parse_doc_ids_from_text(text: str) -> dict[str, list[str]]:
                 current_prefix = "EDU-"
                 _add_ref(part, ids, seen)
             # 콤마 뒤 접두어 없이 숫자/코드만 (예: "2025-2512-01")
-            elif current_prefix and re.match(r'^[\d]', part):
+            elif current_prefix and re.match(r"^[\d]", part):
                 if current_prefix in ("FSS-CASE-", "KICPA-CASE-"):
                     _add_ref(f"{current_prefix}{part}", ids, seen)
                 # QNA 콤마 뒤 숫자 복원은 불가 (SSI/KQA 등 다양한 중간 패턴)
@@ -386,12 +408,14 @@ def _fetch_ie_case_chunks(case_numbers: list[str]) -> list[dict]:
     coll = db[settings.mongo_collection_name]
 
     # "사례 N" regex OR 조건 생성
-    patterns = [re.compile(rf'사례\s*{re.escape(n)}[\s:：]') for n in case_numbers]
+    patterns = [re.compile(rf"사례\s*{re.escape(n)}[\s:：]") for n in case_numbers]
 
-    ie_chunks = list(coll.find(
-        {"chunk_id": {"$regex": "^1115-IE"}},
-        {"embedding": 0},
-    ))
+    ie_chunks = list(
+        coll.find(
+            {"chunk_id": {"$regex": "^1115-IE"}},
+            {"embedding": 0},
+        )
+    )
 
     results = []
     seen_ids: set[str] = set()
@@ -446,21 +470,23 @@ def fetch_pinpoint_docs(matched_topics: list[dict]) -> list[dict]:
             doc = qna_coll.find_one({"_id": qna_id})
             if doc:
                 seen_parent_ids.add(qna_id)
-                results.append({
-                    "source": "QNA",
-                    "chunk_id": f"{qna_id}_pinpoint",
-                    "parent_id": qna_id,
-                    "category": "질의회신",
-                    "chunk_type": "pinpoint",
-                    "content": doc.get("content", "")[:500],
-                    "full_content": doc.get("content", ""),
-                    "title": doc.get("metadata", {}).get("title", ""),
-                    "case_group_title": "",
-                    "score": 1.0,
-                    "vector_score": 0.0,
-                    "related_paragraphs": [],
-                    "hierarchy": f"질의회신 > {qna_id}",
-                })
+                results.append(
+                    {
+                        "source": "QNA",
+                        "chunk_id": f"{qna_id}_pinpoint",
+                        "parent_id": qna_id,
+                        "category": "질의회신",
+                        "chunk_type": "pinpoint",
+                        "content": doc.get("content", "")[:500],
+                        "full_content": doc.get("content", ""),
+                        "title": doc.get("metadata", {}).get("title", ""),
+                        "case_group_title": "",
+                        "score": 1.0,
+                        "vector_score": 0.0,
+                        "related_paragraphs": [],
+                        "hierarchy": f"질의회신 > {qna_id}",
+                    }
+                )
 
     # 3) 감리사례 (FSS/KICPA) 원문 fetch
     if parsed["findings"]:
@@ -471,21 +497,23 @@ def fetch_pinpoint_docs(matched_topics: list[dict]) -> list[dict]:
             doc = findings_coll.find_one({"_id": fid})
             if doc:
                 seen_parent_ids.add(fid)
-                results.append({
-                    "source": "감리사례",
-                    "chunk_id": f"{fid}_pinpoint",
-                    "parent_id": fid,
-                    "category": "감리사례",
-                    "chunk_type": "pinpoint",
-                    "content": doc.get("content", "")[:500],
-                    "full_content": doc.get("content", ""),
-                    "title": doc.get("metadata", {}).get("title", ""),
-                    "case_group_title": "",
-                    "score": 1.0,
-                    "vector_score": 0.0,
-                    "related_paragraphs": [],
-                    "hierarchy": f"감리사례 > {fid}",
-                })
+                results.append(
+                    {
+                        "source": "감리사례",
+                        "chunk_id": f"{fid}_pinpoint",
+                        "parent_id": fid,
+                        "category": "감리사례",
+                        "chunk_type": "pinpoint",
+                        "content": doc.get("content", "")[:500],
+                        "full_content": doc.get("content", ""),
+                        "title": doc.get("metadata", {}).get("title", ""),
+                        "case_group_title": "",
+                        "score": 1.0,
+                        "vector_score": 0.0,
+                        "related_paragraphs": [],
+                        "hierarchy": f"감리사례 > {fid}",
+                    }
+                )
 
     # 4) 교육자료 (EDU) 원문 fetch
     if parsed["edu"]:
@@ -496,21 +524,23 @@ def fetch_pinpoint_docs(matched_topics: list[dict]) -> list[dict]:
             doc = kai_coll.find_one({"_id": eid})
             if doc:
                 seen_parent_ids.add(eid)
-                results.append({
-                    "source": "교육자료",
-                    "chunk_id": f"{eid}_pinpoint",
-                    "parent_id": eid,
-                    "category": "교육자료",
-                    "chunk_type": "pinpoint",
-                    "content": doc.get("content", "")[:500],
-                    "full_content": doc.get("content", ""),
-                    "title": doc.get("metadata", {}).get("title", ""),
-                    "case_group_title": "",
-                    "score": 1.0,
-                    "vector_score": 0.0,
-                    "related_paragraphs": [],
-                    "hierarchy": f"교육자료 > {eid}",
-                })
+                results.append(
+                    {
+                        "source": "교육자료",
+                        "chunk_id": f"{eid}_pinpoint",
+                        "parent_id": eid,
+                        "category": "교육자료",
+                        "chunk_type": "pinpoint",
+                        "content": doc.get("content", "")[:500],
+                        "full_content": doc.get("content", ""),
+                        "title": doc.get("metadata", {}).get("title", ""),
+                        "case_group_title": "",
+                        "score": 1.0,
+                        "vector_score": 0.0,
+                        "related_paragraphs": [],
+                        "hierarchy": f"교육자료 > {eid}",
+                    }
+                )
 
     # 5) IE 사례 → 본문 청크에서 조회 후 RAG 스키마로 변환
     if parsed["ie_cases"]:
@@ -520,81 +550,91 @@ def fetch_pinpoint_docs(matched_topics: list[dict]) -> list[dict]:
             if chunk_id in seen_parent_ids:
                 continue
             seen_parent_ids.add(chunk_id)
-            results.append({
-                "source": "본문",
-                "chunk_id": chunk_id,
-                "parent_id": doc.get("parent_id"),
-                "category": doc.get("category", ""),
-                "chunk_type": "pinpoint",
-                "content": doc.get("text", ""),
-                "full_content": "",
-                "title": doc.get("title", ""),
-                "case_group_title": doc.get("case_group_title", ""),
-                "score": 1.0,
-                "vector_score": 0.0,
-                "related_paragraphs": doc.get("related_paragraphs", []),
-                "hierarchy": doc.get("hierarchy", ""),
-            })
+            results.append(
+                {
+                    "source": "본문",
+                    "chunk_id": chunk_id,
+                    "parent_id": doc.get("parent_id"),
+                    "category": doc.get("category", ""),
+                    "chunk_type": "pinpoint",
+                    "content": doc.get("text", ""),
+                    "full_content": "",
+                    "title": doc.get("title", ""),
+                    "case_group_title": doc.get("case_group_title", ""),
+                    "score": 1.0,
+                    "vector_score": 0.0,
+                    "related_paragraphs": doc.get("related_paragraphs", []),
+                    "hierarchy": doc.get("hierarchy", ""),
+                }
+            )
 
     # 6) 기준서 본문 문단 — MongoDB chunk_id "1115-{para}" 패턴으로 직접 조회
     if parsed["paragraphs"]:
         coll = db[settings.mongo_collection_name]
         chunk_ids = [f"1115-{p}" for p in parsed["paragraphs"]]
-        para_chunks = list(coll.find(
-            {"chunk_id": {"$in": chunk_ids}},
-            {"embedding": 0},
-        ))
+        para_chunks = list(
+            coll.find(
+                {"chunk_id": {"$in": chunk_ids}},
+                {"embedding": 0},
+            )
+        )
         for doc in para_chunks:
             cid = doc.get("chunk_id", "")
             if cid in seen_parent_ids:
                 continue
             seen_parent_ids.add(cid)
-            results.append({
-                "source": "본문",
-                "chunk_id": cid,
-                "parent_id": doc.get("parent_id"),
-                "category": doc.get("category", ""),
-                "chunk_type": "pinpoint",
-                "content": doc.get("text", ""),
-                "full_content": "",
-                "title": doc.get("title", ""),
-                "case_group_title": doc.get("case_group_title", ""),
-                "score": 1.0,
-                "vector_score": 0.0,
-                "related_paragraphs": doc.get("related_paragraphs", []),
-                "hierarchy": doc.get("hierarchy", ""),
-            })
+            results.append(
+                {
+                    "source": "본문",
+                    "chunk_id": cid,
+                    "parent_id": doc.get("parent_id"),
+                    "category": doc.get("category", ""),
+                    "chunk_type": "pinpoint",
+                    "content": doc.get("text", ""),
+                    "full_content": "",
+                    "title": doc.get("title", ""),
+                    "case_group_title": doc.get("case_group_title", ""),
+                    "score": 1.0,
+                    "vector_score": 0.0,
+                    "related_paragraphs": doc.get("related_paragraphs", []),
+                    "hierarchy": doc.get("hierarchy", ""),
+                }
+            )
 
     return results
 
 
 # ── 메인 검색 함수 ───────────────────────────────────────────────────────────────
 
+
 def search_all(query: str, limit: int = 5) -> list[dict]:
     """기본 하이브리드 검색 (Vector + BM25 + RRF) + QNA/감리사례 보조 추출."""
     query_vector = embed_query_sync(query)
-    v_results    = _search_vector(query_vector, VECTOR_TOP_K)
-    k_results    = _search_keyword(query, VECTOR_TOP_K // 2)
-    fused_docs   = _fuse_rrf(v_results, k_results, final_k=limit)
-    base_docs    = _docs_from_fused(fused_docs)
+    v_results = _search_vector(query_vector, VECTOR_TOP_K)
+    k_results = _search_keyword(query, VECTOR_TOP_K // 2)
+    fused_docs = _fuse_rrf(v_results, k_results, final_k=limit)
+    base_docs = _docs_from_fused(fused_docs)
 
     existing_ids = {d["chunk_id"] for d in base_docs}
 
     qna_raw = [
-        d for d in v_results
+        d
+        for d in v_results
         if str(d.get("parent_id", "")).startswith("QNA-")
         and d.get("chunk_id") not in existing_ids
     ][:QNA_SUPPLEMENT]
 
     findings_raw = [
-        d for d in v_results
+        d
+        for d in v_results
         if str(d.get("parent_id", "")).startswith(("FSS-", "KICPA-"))
         and d.get("chunk_id") not in existing_ids
     ][:FINDINGS_SUPPLEMENT]
 
     # 교육자료 보조 추출 — AI 답변 컨텍스트용
     kai_raw = [
-        d for d in v_results
+        d
+        for d in v_results
         if str(d.get("parent_id", "")).startswith("EDU-")
         and d.get("chunk_id") not in existing_ids
     ][:KAI_SUPPLEMENT]

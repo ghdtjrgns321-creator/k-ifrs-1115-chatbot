@@ -40,9 +40,7 @@ async def format_response(state: dict) -> dict:
     findings_case = None
 
     if user_query:
-        findings_case = await asyncio.to_thread(
-            _find_best_findings_case, user_query
-        )
+        findings_case = await asyncio.to_thread(_find_best_findings_case, user_query)
         if findings_case:
             case_title = findings_case["title"]
             nudge_text = (
