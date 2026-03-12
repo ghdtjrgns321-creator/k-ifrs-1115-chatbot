@@ -40,3 +40,5 @@ class RAGState(TypedDict):
     findings_case: dict | None   # 섀도우 매칭된 감리사례
     follow_up_questions: list[str]  # 꼬리 질문 3개 (버튼 텍스트)
     is_conclusion: bool          # 최종 결론 포함 여부
+    selected_branches: NotRequired[list[str]]   # clarify가 선택한 결론 가이드 분기
+    cited_paragraphs: NotRequired[list[str]]     # LLM이 structured output으로 명시한 인용 문단

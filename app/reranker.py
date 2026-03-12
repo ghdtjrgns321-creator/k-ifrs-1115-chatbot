@@ -33,6 +33,14 @@ def rerank_results(query: str, unified_results: list[dict], top_n: int = 5) -> l
     for item in response.results:
         unified_results[item.index]["rerank_score"] = item.relevance_score
 
+    # 진단 로그: pinpoint 문서의 rerank_score 확인
+    pinpoint_cids = {d["chunk_id"] for d in unified_results if d.get("chunk_type") == "pinpoint"}
+    if pinpoint_cids:
+        print(f"[rerank] pinpoint 문서 {len(pinpoint_cids)}건 rerank 채점 결과:")
+        for doc in unified_results:
+            if doc["chunk_id"] in pinpoint_cids:
+                print(f"  {doc['chunk_id']} → rerank_score={doc.get('rerank_score', 0):.4f} | {doc['source']}")
+
     # 2. 맞춤형 비즈니스 룰 적용 (하이브리드 스코어링)
     for doc in unified_results:
         base_score = doc.get("rerank_score", 0.0)
@@ -63,6 +71,19 @@ def rerank_results(query: str, unified_results: list[dict], top_n: int = 5) -> l
             multiplier *= 0.95
 
         doc["final_score"] = base_score * multiplier
+
+    # 진단 로그: pinpoint 문서 탈락 여부
+    if pinpoint_cids:
+        dropped = [d for d in unified_results if d["chunk_id"] in pinpoint_cids and d.get("final_score", 0) == 0]
+        survived = [d for d in unified_results if d["chunk_id"] in pinpoint_cids and d.get("final_score", 0) > 0]
+        if dropped:
+            print(f"[rerank] ⚠️ PINPOINT 탈락 {len(dropped)}건:")
+            for d in dropped:
+                print(f"  DROPPED: {d['chunk_id']} (rerank={d.get('rerank_score', 0):.4f})")
+        if survived:
+            print(f"[rerank] ✓ PINPOINT 생존 {len(survived)}건:")
+            for d in survived:
+                print(f"  SURVIVED: {d['chunk_id']} (final={d.get('final_score', 0):.4f})")
 
     # 3. threshold 미달 문서 제거 후 최종 점수 기준으로 내림차순 정렬
     above_threshold = [d for d in unified_results if d.get("final_score", 0) > 0]

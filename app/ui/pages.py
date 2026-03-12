@@ -13,7 +13,9 @@ import streamlit as st
 from app.ui.client import _call_chat, _call_search
 from app.ui.components import _render_evidence_panel
 from app.ui.constants import HOME_TOPICS_LEFT, HOME_TOPICS_RIGHT
+from app.ui.doc_helpers import _format_pdr_content
 from app.ui.session import _go_home
+from app.ui.text import clean_text
 
 
 def _format_question(text: str) -> str:
@@ -24,7 +26,7 @@ def _format_question(text: str) -> str:
     """
     escaped = html.escape(text.strip())
     # 연속 줄바꿈(빈 줄 포함)을 <br> 하나로 압축
-    return re.sub(r'\n+', '<br>', escaped)
+    return re.sub(r"\n+", "<br>", escaped)
 
 
 def _navigate_to_topic(topic: str) -> None:
@@ -38,7 +40,9 @@ def _navigate_to_topic(topic: str) -> None:
     st.session_state.page_state = "topic_browse"
 
 
-def _render_topic_column(sections: list[tuple[str, list[str]]], key_prefix: str) -> None:
+def _render_topic_column(
+    sections: list[tuple[str, list[str]]], key_prefix: str
+) -> None:
     """Step 헤더 + 토픽 버튼 목록을 렌더링합니다."""
     for section_title, topics in sections:
         st.markdown(f"**{section_title}**")
@@ -78,13 +82,19 @@ def _render_home() -> None:
 
     with left_col:
         st.markdown("**📋 5단계 수익인식 모형**")
-        st.markdown("<hr style='border: none; border-top: 1.5px dashed #E2E8F0; margin: 5px 0 20px 0;'>", unsafe_allow_html=True)
+        st.markdown(
+            "<hr style='border: none; border-top: 1.5px dashed #E2E8F0; margin: 5px 0 20px 0;'>",
+            unsafe_allow_html=True,
+        )
         with st.container(border=True, gap="xsmall"):
             _render_topic_column(HOME_TOPICS_LEFT, "L")
 
     with right_col:
         st.markdown("**📋 후속 처리 · 특수 거래**")
-        st.markdown("<hr style='border: none; border-top: 1.5px dashed #E2E8F0; margin: 5px 0 20px 0;'>", unsafe_allow_html=True)
+        st.markdown(
+            "<hr style='border: none; border-top: 1.5px dashed #E2E8F0; margin: 5px 0 20px 0;'>",
+            unsafe_allow_html=True,
+        )
         with st.container(border=True, gap="xsmall"):
             _render_topic_column(HOME_TOPICS_RIGHT, "R")
 
@@ -207,7 +217,7 @@ def _render_ai_answer() -> None:
 
         answer = st.session_state.ai_answer
         if answer:
-            st.markdown(answer)
+            st.markdown(clean_text(answer), unsafe_allow_html=True)
         else:
             st.info("답변을 준비 중입니다...")
 
@@ -215,10 +225,12 @@ def _render_ai_answer() -> None:
         if st.session_state.findings_case:
             fc = st.session_state.findings_case
             case_title = fc.get("title", "감리지적사례")
-            with st.expander(f":material/gavel: 금융감독원 지적사례: {case_title}", expanded=False):
+            with st.expander(
+                f":material/gavel: 금융감독원 지적사례: {case_title}", expanded=False
+            ):
                 raw_content = fc.get("content", "내용을 불러올 수 없습니다.")
-                adjusted = raw_content.replace("# ", "### ").replace("## ", "#### ")
-                st.markdown(adjusted)
+                adjusted = _format_pdr_content(raw_content)
+                st.markdown(clean_text(adjusted), unsafe_allow_html=True)
 
         st.divider()
 

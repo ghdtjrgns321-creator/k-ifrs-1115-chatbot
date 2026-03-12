@@ -1,39 +1,51 @@
 # app/agents.py
-# PydanticAI Agent 정의 — LangChain의 ChatPromptTemplate + with_structured_output() 대체
+# PydanticAI Agent 정의 — 듀얼트랙 generate (Gemini Flash high + gpt-4.1-mini calc)
 #
 # 7개 LLM 호출 포인트를 PydanticAI Agent로 통일합니다:
 #   analyze_agent  — 질문 분석/라우팅 (gpt-4.1-mini, structured output)
 #   grade_agent    — 문서 품질 평가 (gpt-4.1-mini, structured output)
-#   generate_agent — 최종 답변 생성 (gpt-5-mini, reasoning_effort=medium, structured output)
-#   clarify_agent  — 거래 상황 분석 + 결론 (gpt-5-mini, reasoning_effort=medium, 동적 system prompt)
+#   generate_agent — 일반 답변 생성 (Gemini Flash thinking=high, structured output)
+#   clarify_agent  — 거래 상황 분석 + 결론 (Gemini Flash thinking=high, 동적 system prompt)
 #   rewrite_agent  — 질문 재작성 (gpt-4.1-mini, plain text)
 #   hyde_agent     — HyDE 가상 문서 (gpt-4.1-mini, plain text)
 #   text_agent     — search_service LLM 키워드 추출용 (gpt-4.1-mini, plain text)
+#   calc_fallback  — 계산 질문 폴백 (gpt-4.1-mini, 산술 정확도 100%)
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, ModelRetry, RunContext
+from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.providers.google import GoogleProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from app.config import settings
-from app.prompts import ANALYZE_PROMPT, CLARIFY_SYSTEM, GENERATE_SYSTEM
+from app.prompts import ANALYZE_PROMPT, CALC_CLARIFY_SYSTEM, CLARIFY_SYSTEM, GENERATE_SYSTEM
 
 
 # ── 모델 팩토리 ────────────────────────────────────────────────────────────────
-# OpenAIProvider로 api_key를 주입하고, OpenAIModel에 provider를 전달합니다.
 
-_provider = OpenAIProvider(api_key=settings.openai_api_key)
+_openai_provider = OpenAIProvider(api_key=settings.openai_api_key)
+_google_provider = GoogleProvider(api_key=settings.google_api_key)
 
 
 def _front_model() -> OpenAIModel:
     """analyze / grade / rewrite / hyde 용 경량 모델."""
-    return OpenAIModel(settings.llm_front_model, provider=_provider)
+    return OpenAIModel(settings.llm_front_model, provider=_openai_provider)
 
 
-def _generate_model() -> OpenAIModel:
-    """generate/clarify 전용 reasoning 모델 (gpt-5-mini, reasoning_effort=medium)."""
-    return OpenAIModel(settings.llm_generate_model, provider=_provider)
+def _generate_model() -> GoogleModel:
+    """generate/clarify 전용 — Gemini Flash (thinking=high)."""
+    return GoogleModel(settings.llm_generate_model, provider=_google_provider)
+
+
+def _calc_model() -> OpenAIModel:
+    """계산 질문 폴백 — gpt-4.1-mini (산술 정확도 100%)."""
+    return OpenAIModel(settings.llm_calc_model, provider=_openai_provider)
+
+
+# generate.py에서 import하여 model override에 사용
+calc_fallback = _calc_model()
 
 
 # ── 출력 스키마 ────────────────────────────────────────────────────────────────
@@ -64,12 +76,61 @@ class GradeResult(BaseModel):
 
 class GenerateOutput(BaseModel):
     answer: str = Field(description="K-IFRS 1115호 답변 (마크다운)")
+    cited_paragraphs: list[str] = Field(
+        default_factory=list,
+        description='답변에서 인용한 문단 번호 목록. 예: ["문단 46", "문단 B58"]',
+    )
     follow_up_questions: list[str] = Field(
         description="실무 담당자를 위한 핵심 후속 질문 3개"
     )
     is_conclusion: bool = Field(
         default=False,
         description="충분한 정보가 모여 최종 결론을 포함한 답변이면 True",
+    )
+
+
+class ClarifyOutput(BaseModel):
+    """clarify_agent 전용 — 분기 선택 + 인용을 구조적으로 강제."""
+
+    selected_branches: list[str] = Field(
+        description='[결론 가이드]에서 선택한 분기 라벨. '
+                    'TYPE 1(조건부)이면 해당 모든 분기, TYPE 2(확정)이면 확정 1개. '
+                    '예: ["[분기 1] 5가지 요건 모두 충족 → IFRS 1115호 적용 (문단 9)"]',
+    )
+    answer: str = Field(
+        description="K-IFRS 1115호 답변 (마크다운). output_contract의 TYPE 1 또는 TYPE 2 형식.",
+    )
+    cited_paragraphs: list[str] = Field(
+        description='답변에서 인용한 K-IFRS 1115호 문단 번호 목록. 예: ["문단 B35", "문단 56"]',
+    )
+    follow_up_questions: list[str] = Field(
+        default_factory=list,
+        description="TYPE 1: 조건을 좁힐 후속 질문 3개. TYPE 2: 빈 배열",
+    )
+    is_conclusion: bool = Field(
+        default=True,
+        description="항상 True. 조건부든 확정이든 결론을 반드시 포함.",
+    )
+
+
+class CalcClarifyOutput(BaseModel):
+    """calc_clarify_agent 전용 — selected_branches 없음, validator 없음.
+
+    Why: gpt-4.1-mini(non-reasoning)는 selected_branches를 안정적으로 생성하지 못하고,
+    output_validator의 ModelRetry가 산술 정확도를 떨어뜨림.
+    """
+    answer: str = Field(description="K-IFRS 1115호 답변 (마크다운)")
+    cited_paragraphs: list[str] = Field(
+        default_factory=list,
+        description='답변에서 인용한 문단 번호 목록. 예: ["문단 B35", "문단 56"]',
+    )
+    follow_up_questions: list[str] = Field(
+        default_factory=list,
+        description="TYPE 1: 조건을 좁힐 후속 질문 3개. TYPE 2: 빈 배열",
+    )
+    is_conclusion: bool = Field(
+        default=True,
+        description="항상 True. 조건부든 확정이든 결론을 반드시 포함.",
     )
 
 
@@ -104,18 +165,26 @@ generate_agent = Agent(
     output_type=GenerateOutput,
     retries=2,
     system_prompt=GENERATE_SYSTEM,
-    # reasoning 모델은 temperature 무시 → reasoning_effort로 속도/품질 조절
-    # max_tokens=4096: reasoning 내부 사고 토큰 + 출력 토큰 합산 상한 → 과도한 reasoning 방지로 10~30% 속도 개선
-    model_settings={"openai_reasoning_effort": "medium", "max_tokens": 4096},
+    # Gemini Flash thinking=high: 회계 추론 품질 1위 (score 0.81)
+    model_settings={"google_thinking_config": {"thinking_level": "high"}},
 )
 
 clarify_agent = Agent(
-    _generate_model(),  # o4-mini: 거래 상황 분석은 reasoning 필수
-    output_type=GenerateOutput,
+    _generate_model(),  # Gemini Flash: 거래 상황 분석은 thinking 필수
+    output_type=ClarifyOutput,
     retries=2,
     deps_type=ClarifyDeps,
-    # reasoning 모델 → temperature 자동 무시, reasoning_effort로 속도/품질 조절
-    model_settings={"openai_reasoning_effort": "medium", "max_tokens": 4096},
+    # Gemini Flash thinking=high
+    model_settings={"google_thinking_config": {"thinking_level": "high"}},
+)
+
+# Why: gpt-4.1-mini 전용. selected_branches 불필요, validator 없음, non-reasoning 프롬프트.
+# 프로덕션 clarify_agent는 Gemini thinking용이라 calc 모델에서 포맷 FAIL + 재시도 폭주.
+calc_clarify_agent = Agent(
+    _calc_model(),
+    output_type=CalcClarifyOutput,
+    retries=4,
+    system_prompt=CALC_CLARIFY_SYSTEM,
 )
 
 rewrite_agent = Agent(
@@ -139,6 +208,22 @@ text_agent = Agent(
     retries=1,
     model_settings={"temperature": settings.llm_temperature},
 )
+
+
+# ── clarify_agent result_validator — 빈 인용/빈 분기 reject ──────────────────
+
+
+@clarify_agent.output_validator
+async def _validate_clarify(ctx: RunContext[ClarifyDeps], result: ClarifyOutput) -> ClarifyOutput:
+    """빈 인용/빈 분기를 reject → ModelRetry로 LLM 재호출."""
+    errors = []
+    if not result.cited_paragraphs:
+        errors.append("cited_paragraphs가 비어있습니다. 답변의 근거 문단 번호를 반드시 포함하세요.")
+    if not result.selected_branches:
+        errors.append("selected_branches가 비어있습니다. [결론 가이드]에서 선택한 분기를 반드시 포함하세요.")
+    if errors:
+        raise ModelRetry("\n".join(errors))
+    return result
 
 
 # ── clarify_agent 동적 system prompt ───────────────────────────────────────────

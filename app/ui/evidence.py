@@ -18,6 +18,7 @@ from app.ui.doc_helpers import (
     _is_ie_doc,
     _normalize_case_group_title,
 )
+from app.domain.topic_content_map import get_desc_for_pdr
 from app.ui.doc_renderers import (
     _render_document_expander,
     _render_pdr_expander,
@@ -25,7 +26,9 @@ from app.ui.doc_renderers import (
 from app.ui.text import _esc, _extract_para_refs, _para_ref_to_num
 
 # AI 답변 페이지에서 벡터검색 대신 인용 문단만 표시할 소스 유형
-_STANDARD_SOURCES = frozenset({"본문", "적용지침B", "결론도출근거", "용어정의", "시행일"})
+_STANDARD_SOURCES = frozenset(
+    {"본문", "적용지침B", "결론도출근거", "용어정의", "시행일"}
+)
 
 
 def _get_cited_standard_docs() -> list[dict]:
@@ -76,22 +79,90 @@ def _get_cited_standard_docs() -> list[dict]:
             continue
         seen_ids.add(cid)
 
-        result.append({
-            "source": source,
-            "hierarchy": doc.get("hierarchy", ""),
-            "title": doc.get("title", ""),
-            "content": doc.get("content", "") or doc.get("text", ""),
-            "full_content": doc.get("content", "") or doc.get("text", ""),
-            "chunk_id": doc.get("chunk_id", ""),
-            "paraNum": doc.get("paraNum", ""),
-            "metadata": doc.get("metadata") or {},
-            "score": 0.0,
-        })
+        result.append(
+            {
+                "source": source,
+                "hierarchy": doc.get("hierarchy", ""),
+                "title": doc.get("title", ""),
+                "content": doc.get("content", "") or doc.get("text", ""),
+                "full_content": doc.get("content", "") or doc.get("text", ""),
+                "chunk_id": doc.get("chunk_id", ""),
+                "paraNum": doc.get("paraNum", ""),
+                "metadata": doc.get("metadata") or {},
+                "score": 0.0,
+            }
+        )
 
     # 캐시에 저장
     st.session_state["_cited_docs_cache_key"] = cache_key
     st.session_state["_cited_docs_cache"] = result
     return result
+
+
+def _get_cited_pdr_docs() -> list[dict]:
+    """AI 답변에서 인용된 QNA/감리사례를 DB에서 조회합니다.
+
+    retriever가 가져온 것과 무관하게, AI가 실제 인용한 ID만 표시합니다.
+    """
+    from app.ui.db import fetch_parent_doc
+
+    answer = st.session_state.get("ai_answer", "")
+    if not answer:
+        return []
+
+    cache_key = hash(("pdr", answer))
+    if st.session_state.get("_cited_pdr_cache_key") == cache_key:
+        return st.session_state.get("_cited_pdr_cache", [])
+
+    cited_ids = re.findall(r"(QNA-[\w-]+|FSS-CASE-[\w-]+|KICPA-CASE-[\w-]+)", answer)
+    if not cited_ids:
+        return []
+
+    result: list[dict] = []
+    for pid in dict.fromkeys(cited_ids):
+        parent = fetch_parent_doc(pid)
+        if not parent:
+            continue
+        source = "감리사례" if pid.startswith(("FSS-", "KICPA-")) else "질의회신"
+        result.append(
+            {
+                "source": source,
+                "parent_id": pid,
+                "hierarchy": parent.get("hierarchy", ""),
+                "title": parent.get("title", ""),
+                "content": "",
+                "chunk_id": pid,
+                "score": 0.0,
+            }
+        )
+
+    st.session_state["_cited_pdr_cache_key"] = cache_key
+    st.session_state["_cited_pdr_cache"] = result
+    return result
+
+
+def _get_cited_ie_docs() -> list[dict]:
+    """AI 답변에서 인용된 IE 적용사례를 DB에서 조회합니다."""
+    answer = st.session_state.get("ai_answer", "")
+    if not answer:
+        return []
+
+    cache_key = hash(("ie", answer))
+    if st.session_state.get("_cited_ie_cache_key") == cache_key:
+        return st.session_state.get("_cited_ie_cache", [])
+
+    # "사례 24", "사례 1A" 등 추출
+    case_refs = re.findall(r"사례\s*(\d+[A-Z]?)", answer)
+    if not case_refs:
+        return []
+
+    # "사례 24" → "사례 24" 정규화하여 DB 조회
+    case_titles = list(dict.fromkeys(f"사례 {c}" for c in case_refs))
+    ie_docs = fetch_ie_case_docs(tuple(case_titles))
+
+    st.session_state["_cited_ie_cache_key"] = cache_key
+    st.session_state["_cited_ie_cache"] = ie_docs
+    return ie_docs
 
 
 def _render_evidence_panel() -> None:
@@ -118,13 +189,47 @@ def _render_evidence_panel() -> None:
         deduped.append(doc)
     docs = deduped
 
-    # AI 답변 페이지: 기준서 문서(본문/적용지침/BC)는 벡터검색 대신
-    # AI가 직접 인용한 문단만 DB에서 조회하여 표시
+    # AI 답변 페이지: 인용 문서를 메인으로, retriever 결과는 보조로 분리
+    # session_state에 보조 문서를 저장해두고 렌더링 시 "더보기"로 표시
+    _SUPPLEMENTABLE = frozenset({"질의회신", "QNA", "감리사례", "적용사례IE"})
     if st.session_state.get("page_state") == "ai_answer":
-        cited_docs = _get_cited_standard_docs()
-        # 벡터검색 결과에서 기준서 문서 제거 → 인용 문단으로 교체
-        docs = [d for d in docs if d.get("source", "") not in _STANDARD_SOURCES]
-        docs.extend(cited_docs)
+        # retriever가 가져온 QNA/감리/IE 원본 보존 (더보기용)
+        retrieved_supplementary = [
+            d for d in docs if d.get("source", "") in _SUPPLEMENTABLE
+        ]
+
+        # 인용 문서로 교체
+        docs = [
+            d
+            for d in docs
+            if d.get("source", "") not in (_STANDARD_SOURCES | _SUPPLEMENTABLE)
+        ]
+        docs.extend(_get_cited_standard_docs())
+
+        # 인용된 QNA/감리/IE
+        cited_pdr = _get_cited_pdr_docs()
+        cited_ie = _get_cited_ie_docs()
+        docs.extend(cited_pdr)
+        docs.extend(cited_ie)
+
+        # 인용 문서의 ID 집합 — 더보기에서 중복 제거용
+        cited_pdr_ids = {d.get("parent_id") or d.get("chunk_id") for d in cited_pdr}
+        cited_ie_cids = {d.get("chunk_id") for d in cited_ie}
+
+        # retriever 결과 중 인용되지 않은 것을 소스별로 분리 (각 TOP 3)
+        _supp_by_group: dict[str, list[dict]] = {}
+        for d in retrieved_supplementary:
+            uid = d.get("parent_id") or d.get("chunk_id", "")
+            if uid and uid not in cited_pdr_ids and uid not in cited_ie_cids:
+                src = d.get("source", "")
+                _supp_by_group.setdefault(src, []).append(d)
+        # 각 소스별 score 상위 3개만 유지
+        for src in _supp_by_group:
+            _supp_by_group[src].sort(key=lambda x: x.get("score", 0.0), reverse=True)
+            _supp_by_group[src] = _supp_by_group[src][:3]
+        st.session_state["_supp_by_group"] = _supp_by_group
+    else:
+        st.session_state["_supp_by_group"] = {}
 
     # suffix 포함 자연 정렬: B59 → B59A → B59B
     def _extract_num(doc: dict) -> tuple[str, int, str]:
@@ -138,7 +243,7 @@ def _render_evidence_panel() -> None:
 
     # 문서를 그룹명별로 분류
     groups: dict[str, list[dict]] = {g: [] for g in ACCORDION_GROUPS}
-    groups["기타"] = []
+    groups["📖 한국회계기준원 교육자료"] = []
 
     for doc in docs:
         placed = False
@@ -148,17 +253,12 @@ def _render_evidence_panel() -> None:
                 placed = True
                 break
         if not placed:
-            groups["기타"].append(doc)
+            groups["📖 한국회계기준원 교육자료"].append(doc)
 
     # 그룹별 렌더링 (문서가 있는 그룹만 표시)
-    is_first_group = True
     for group_name, group_docs in groups.items():
         if not group_docs:
             continue
-
-        if not is_first_group:
-            st.divider()
-        is_first_group = False
 
         total_count = len(group_docs)
         is_ie_group = group_name == "📋 적용사례(IE)"
@@ -256,7 +356,7 @@ def _render_evidence_panel() -> None:
             )
             continue
 
-        # ── QNA/감리사례: PDR 방식 ──
+        # ── QNA/감리사례: PDR 방식 (인용 문서 flat + 보조 더보기) ──
         _PDR_GROUPS = {"💬 질의회신(QNA)", "🚨 감리지적사례"}
         if group_name in _PDR_GROUPS:
             unique_parents: dict[str, dict] = {}
@@ -270,25 +370,17 @@ def _render_evidence_panel() -> None:
                     no_parent_docs.append(d)
 
             pdr_docs = list(unique_parents.values()) + no_parent_docs
-
-            INITIAL = 3
-            initial_docs = pdr_docs[:INITIAL]
-            rest_docs = pdr_docs[INITIAL:]
-
-            for i, d in enumerate(initial_docs):
-                if d.get("parent_id"):
-                    _render_pdr_expander(d, doc_index=i)
+            for i, d in enumerate(pdr_docs):
+                pid = d.get("parent_id", "")
+                if pid:
+                    _render_pdr_expander(
+                        d, doc_index=i, entry_desc=get_desc_for_pdr(pid)
+                    )
                 else:
                     _render_document_expander(d, doc_index=i)
 
-            if rest_docs:
-                with st.expander(f"📂 더보기 ({len(rest_docs)}건)", expanded=False):
-                    with st.container(border=True):
-                        for i, d in enumerate(rest_docs):
-                            if d.get("parent_id"):
-                                _render_pdr_expander(d, doc_index=INITIAL + i)
-                            else:
-                                _render_document_expander(d, doc_index=INITIAL + i)
+            # 보조 문서: 해당 소스의 retriever 결과 중 인용 안 된 것 TOP 3
+            _render_supp_extra(sources, 800 + len(pdr_docs))
             continue
 
         # ── 기타: 상위 3개 표시 + 나머지 "더보기" ──
@@ -302,9 +394,26 @@ def _render_evidence_panel() -> None:
 
         if rest_docs:
             rest_docs.sort(key=_extract_num)
-            with st.expander(
-                f"📂 더보기 ({len(rest_docs)}건)", expanded=False
-            ):
+            with st.expander(f"📂 더보기 ({len(rest_docs)}건)", expanded=False):
                 with st.container(border=True):
                     for i, d in enumerate(rest_docs):
                         _render_document_expander(d, doc_index=INITIAL + i)
+
+    # ── AI 답변 페이지: retriever 보조 문서 (인용 안 된 것 TOP 3) ──
+    supp_extra = st.session_state.get("_supp_extra_docs", [])
+    if supp_extra:
+        st.markdown(
+            "<div style='border-top:1.5px dashed #b8cef0; "
+            "margin:1.25rem 0 0.25rem;'></div>",
+            unsafe_allow_html=True,
+        )
+        with st.expander(
+            f"📂 참고할 수 있는 추가 문서 ({len(supp_extra)}건)", expanded=False
+        ):
+            with st.container(border=True):
+                for i, d in enumerate(supp_extra):
+                    pid = d.get("parent_id", "")
+                    if pid:
+                        _render_pdr_expander(d, doc_index=900 + i)
+                    else:
+                        _render_document_expander(d, doc_index=900 + i)

@@ -11,19 +11,17 @@ class Settings(BaseSettings):
     upstage_api_key: str  # 임베딩 전용
     openai_api_key: str   # LLM 전용
     cohere_api_key: str   # Reranker 전용 (rerank-multilingual-v3.0)
+    google_api_key: str   # Gemini API
 
-    # 3. LangSmith 모니터링 설정 (선택사항)
-    langchain_api_key: str | None = None
-    langchain_tracing_v2: bool = False
-    langchain_project: str = "k-ifrs-1115-chatbot"
-
-    # 4. LLM 모델 설정
+    # 3. LLM 모델 설정
     # Front Nodes (analyze, rewrite, grade): 빠른 분류·평가용 경량 모델
     llm_front_model: str = "gpt-4.1-mini"
-    # Generate Node: 복잡한 회계 답변 생성용 추론 모델
-    llm_generate_model: str = "gpt-5-mini"
+    # Generate Node: 회계 추론 품질 1위 Gemini Flash (thinking=high)
+    llm_generate_model: str = "gemini-3-flash-preview"
+    # 계산 폴백: 산술 정확도 100% + 최저 비용
+    llm_calc_model: str = "gpt-4.1-mini"
     llm_temperature: float = 0.0
-    # API 응답 대기 최대 시간(초) — o4-mini 추론 모델은 복잡한 케이스에서 70-80초 소요 가능
+    # API 응답 대기 최대 시간(초)
     llm_timeout: int = 90
     # HyDE 가상 문서 생성 전용 타임아웃 — 3-5문장만 생성하므로 15초로 충분
     # 초과 시 원본 쿼리로 즉시 폴백하여 전체 파이프라인 지연 방지

@@ -10,9 +10,10 @@ import re
 import streamlit as st
 
 
-# QNA/감리사례 부모 문서가 저장된 별도 컬렉션명
+# QNA/감리사례/교육자료 부모 문서가 저장된 별도 컬렉션명
 _QNA_PARENT_COLL = "k-ifrs-1115-qna-parents"
 _FINDINGS_PARENT_COLL = "k-ifrs-1115-findings-parents"
+_KAI_PARENT_COLL = "k-ifrs-1115-kai-parents"
 
 
 @st.cache_resource
@@ -184,11 +185,13 @@ def fetch_parent_doc(parent_id: str) -> dict | None:
         return None
     try:
         db = _get_mongo_db()
-        # QNA/감리사례 → 별도 parent 컬렉션에서 _id로 조회
+        # QNA/감리사례/교육자료 → 별도 parent 컬렉션에서 _id로 조회
         if parent_id.startswith("QNA-"):
             doc = db[_QNA_PARENT_COLL].find_one({"_id": parent_id}, {"embedding": 0})
         elif parent_id.startswith(("FSS-", "KICPA-")):
             doc = db[_FINDINGS_PARENT_COLL].find_one({"_id": parent_id}, {"embedding": 0})
+        elif parent_id.startswith("EDU-"):
+            doc = db[_KAI_PARENT_COLL].find_one({"_id": parent_id}, {"embedding": 0})
         else:
             # 본문 등 기존 방식 — 메인 컬렉션에서 chunk_id로 조회
             coll = _get_mongo_collection()

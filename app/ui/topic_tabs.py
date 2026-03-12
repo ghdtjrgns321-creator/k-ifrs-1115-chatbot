@@ -179,8 +179,8 @@ def _render_preview_captions(
             '<div style="font-size:0.82em; color:#9ca3af; '
             'line-height:1.4; margin:0 0 3px 0.25rem;">...</div>'
         )
-    # margin-top 음수로 expander 하단 여백을 상쇄하여 제목에 바싹 붙임
-    st.html(f'<div style="margin-top:-0.75rem; margin-bottom:0.15rem;">{html_parts}</div>')
+    # expander 아래 적절한 간격 유지
+    st.html(f'<div style="margin-top:-0.25rem; margin-bottom:0.15rem;">{html_parts}</div>')
 
 
 def _collect_expanded_ids(sections: list[dict]) -> list[str]:

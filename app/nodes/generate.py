@@ -7,14 +7,39 @@
 import re
 import traceback
 
-from app.agents import generate_agent, clarify_agent, ClarifyDeps, GenerateOutput
+from app.agents import generate_agent, clarify_agent, calc_clarify_agent, calc_fallback, ClarifyDeps, ClarifyOutput
+from app.domain.topic_content_map import get_topic_descs
 from app.prompts import CLARIFY_USER, GENERATE_USER
 from app.services.search_service import INVERTED_MAPPING
 
-# 생성에 사용할 최대 문서 수 — reranker가 관련성 순 정렬하므로 상위 N개면 충분
-GENERATE_DOC_LIMIT = 3
-# PDR 원리 + 토큰 절약: 문서당 최대 글자 수
-MAX_DOC_CHARS = 1200
+
+# 직접 계산을 요청하는 명령형 패턴만 허용
+# Why: "산정하면", "계산해야 하나요" 같은 서술형은 회계 판단 질문인 경우가 많음
+# "계산해줘", "구해줘", "산출해줘" 같은 직접 명령만 calc 라우팅
+_CALC_COMMAND = re.compile(r"계산해|산정해|산출해|구해[줘봐]|얼마[인야냐]|몇.?[인야냐]")
+# 금액·퍼센트가 3개 이상 → 확실한 수치 계산 질문
+# Why: 2개는 맥락 설명("100억 매출, 10% 할인")만으로도 달성 → false positive
+_AMOUNT_PATTERN = re.compile(r"\d+[만억조]?\s*원|\d+\.?\d*\s*%")
+
+
+def _needs_calculation(matched_topics: list[dict], question: str) -> bool:
+    """계산 모델(gpt-4.1-mini) 라우팅 판단 — 3가지 조건 AND.
+
+    Why: 회계 판단 질문("볼륨 디스카운트 수익 인식은?")이 calc로 빠지면
+    Gemini의 깊은 추론 대신 gpt-mini의 얕은 답변이 나옴.
+    "직접 계산 명령 + 금액 3개 이상"일 때만 calc 라우팅.
+    """
+    has_formula = any(t.get("calculation_formula") for t in matched_topics)
+    if not has_formula:
+        return False
+    # 직접 계산 명령이 있어야 calc 라우팅
+    # Why: "산정하면 수익은?" = 판단 질문, "산정해줘" = 계산 요청
+    has_calc_command = bool(_CALC_COMMAND.search(question))
+    if not has_calc_command:
+        return False
+    # 금액 3개 이상이면 확실한 계산 질문
+    has_amounts = len(_AMOUNT_PATTERN.findall(question)) >= 3
+    return has_amounts
 
 
 def _get_last_human_message(messages: list[tuple[str, str]]) -> str:
@@ -44,9 +69,60 @@ def _get_related_practitioner_terms(docs: list[dict]) -> str:
     return "\n".join(lines[:5]) if lines else "(해당 없음)"
 
 
+def _format_precedents_context(matched_topics: list[dict]) -> str:
+    """matched_topics의 precedents + calculation_formula를 context 텍스트로 포맷.
+
+    Why: retriever가 선례·공식을 못 찾을 수 있으므로, decision_tree에서 직접 주입하여
+    LLM이 실제 사례와 계산 근거를 참조할 수 있게 한다.
+    """
+    parts: list[str] = []
+    for topic in matched_topics:
+        name = topic.get("topic_name", "")
+
+        precedents = topic.get("precedents", {})
+        if precedents:
+            for branch, cases in precedents.items():
+                parts.append(f"[선례: {name} — {branch}]")
+                parts.extend(cases)
+
+        formula = topic.get("calculation_formula")
+        if formula:
+            for branch, text in formula.items():
+                parts.append(f"[계산공식: {name} — {branch}]")
+                parts.append(text)
+
+    return "\n".join(parts)
+
+
+def _format_topic_knowledge(matched_topics: list[dict]) -> str:
+    """매칭된 토픽의 topics.json desc 요약을 [참고 지식]으로 포맷.
+
+    Why: 리트리버가 놓치는 핵심 문단도 desc 요약으로 100% 커버리지 확보.
+    원문 대신 요약이므로 토큰 절약 효과.
+    """
+    parts: list[str] = []
+    for topic in matched_topics:
+        name = topic.get("topic_name", "")
+        descs = get_topic_descs(name)
+        if descs:
+            parts.append(f"[{name} 핵심 요약]\n{descs}")
+    return "\n\n".join(parts)
+
+
 async def generate_answer(state: dict) -> dict:
     """최종 필터링된 문서를 바탕으로 답변을 생성합니다."""
-    docs = state.get("relevant_docs", [])[:GENERATE_DOC_LIMIT]
+    all_docs = state.get("relevant_docs", [])
+
+    # IE 적용사례 pinpoint은 LLM context에서 제외 — topics.json desc로 이미 커버
+    # Why: IE 원문이 GENERATE_DOC_LIMIT 슬롯을 차지하면 본문/적용지침이 밀려남
+    # UX3에는 relevant_docs 전체가 표시되므로 사용자는 원문을 볼 수 있음
+    docs_for_llm = [d for d in all_docs
+                    if not (d.get("chunk_type") == "pinpoint"
+                            and d.get("category") == "적용사례IE")]
+    ie_skipped = len(all_docs) - len(docs_for_llm)
+    if ie_skipped:
+        print(f"[generate] IE 적용사례 {ie_skipped}건 LLM context 제외 (desc로 커버)")
+    docs = docs_for_llm
     is_situation = state.get("is_situation", False)
     force_conclusion = state.get("force_conclusion", False)
     messages = state.get("messages", [])
@@ -63,7 +139,7 @@ async def generate_answer(state: dict) -> dict:
     for doc in docs:
         source_type = doc.get("source", "본문")
         raw = doc.get("full_content") if source_type != "본문" else doc.get("content")
-        text = raw[:MAX_DOC_CHARS] if raw and len(raw) > MAX_DOC_CHARS else raw
+        text = raw or ""
         hierarchy = doc.get("hierarchy", "")
         context_parts.append(f"[{source_type}] {hierarchy}\n{text}")
         cited_sources.append({
@@ -82,14 +158,19 @@ async def generate_answer(state: dict) -> dict:
         if is_situation and not force_conclusion:
             output = await _run_clarify(state, messages, context_str, confusion_point)
             is_conclusion = output.is_conclusion
-
+            # CalcClarifyOutput에는 selected_branches 없음 (non-reasoning 모델용)
+            selected_branches = getattr(output, "selected_branches", [])
+            structured_cited = output.cited_paragraphs
         elif is_situation and force_conclusion:
             output = await _run_force_conclusion(state, docs, context_str, confusion_point)
             is_conclusion = True
-
+            selected_branches = []
+            structured_cited = getattr(output, "cited_paragraphs", [])
         else:
             output = await _run_generate(state, docs, context_str, confusion_point)
             is_conclusion = output.is_conclusion
+            selected_branches = []
+            structured_cited = getattr(output, "cited_paragraphs", [])
 
         answer = output.answer
         # LLM이 answer 필드에 "follow_up_questions:" 텍스트를 포함시키는 경우 제거
@@ -100,6 +181,8 @@ async def generate_answer(state: dict) -> dict:
         print(f"[error] generate_answer failed:\n{traceback.format_exc()}")
         answer = "답변 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
         follow_up_questions = []
+        selected_branches = []
+        structured_cited = []
 
     return {
         "answer": answer,
@@ -107,6 +190,8 @@ async def generate_answer(state: dict) -> dict:
         "follow_up_questions": follow_up_questions,
         "is_situation": is_situation,
         "is_conclusion": is_conclusion,
+        "selected_branches": selected_branches,
+        "cited_paragraphs": structured_cited,
     }
 
 
@@ -114,7 +199,7 @@ async def generate_answer(state: dict) -> dict:
 
 async def _run_clarify(
     state: dict, messages: list, context_str: str, confusion_point: str
-) -> GenerateOutput:
+) -> ClarifyOutput:
     """is_situation=True, force_conclusion=False → clarify_agent 호출."""
     deps = ClarifyDeps(
         matched_topics=state.get("matched_topics", []),
@@ -130,6 +215,23 @@ async def _run_clarify(
     # 사용자 원문 추출 — 혼동점 해소에서 사용자가 쓴 단어를 인용하기 위해
     original_message = _get_last_human_message(messages)
 
+    # calc 라우팅 판단을 context 구성 전에 수행
+    # Why: calc 경로에서는 topic_knowledge를 스킵하여 산술 집중도를 유지
+    use_calc = _needs_calculation(state.get("matched_topics", []), original_message)
+
+    # topics.json desc 주입 — calc 경로에서는 스킵
+    # Why: topic_knowledge(~2000자)가 gpt-4.1-mini의 산술 집중도를 분산시켜
+    # 진행률 계산 등의 정확도가 0.845→0.67로 급락하는 현상 확인됨
+    if not use_calc:
+        topic_knowledge = _format_topic_knowledge(state.get("matched_topics", []))
+        if topic_knowledge:
+            context_str = f"[참고 지식]\n{topic_knowledge}\n\n---\n\n{context_str}"
+
+    # precedents/formula를 context 앞에 추가 — retriever 의존도 축소
+    precedents_text = _format_precedents_context(state.get("matched_topics", []))
+    if precedents_text:
+        context_str = f"[큐레이션 선례·공식]\n{precedents_text}\n\n---\n\n{context_str}"
+
     user_msg = CLARIFY_USER.format(
         context=context_str,
         confusion_point=confusion_point,
@@ -137,13 +239,26 @@ async def _run_clarify(
         original_message=original_message,
         question=state["standalone_query"],
     )
-    result = await clarify_agent.run(user_msg, deps=deps)
+
+    # 듀얼트랙: 계산 질문이면 calc_clarify_agent, 아니면 Gemini Flash (기본값)
+    # Why: clarify_agent는 Gemini thinking용 — selected_branches 필수 + validator 재시도.
+    # gpt-4.1-mini(non-reasoning)에서 포맷 FAIL + 산술 정확도 하락 발생.
+    # calc_clarify_agent는 non-reasoning 전용 스키마/프롬프트로 이 문제 해결.
+    if use_calc:
+        print(f"[clarify] model=gpt-4.1-mini(calc) via calc_clarify_agent")
+        result = await calc_clarify_agent.run(
+            user_msg,
+            model_settings={"temperature": 0.0},
+        )
+    else:
+        print(f"[clarify] model=gemini-flash(thinking=high)")
+        result = await clarify_agent.run(user_msg, deps=deps)
     return result.output
 
 
 async def _run_force_conclusion(
     state: dict, docs: list, context_str: str, confusion_point: str
-) -> GenerateOutput:
+):
     """is_situation=True, force_conclusion=True → generate_agent에 체크리스트 맥락 포함."""
     checked = state.get("checklist_state", {})
     checked_items = checked.get("checked_items", []) if checked else []
@@ -157,6 +272,21 @@ async def _run_force_conclusion(
                 check_lines.append(f"- {c}")
         context_with_checks += "\n\n[사용자가 확인한 사항]\n" + "\n".join(check_lines)
 
+    # calc 라우팅 판단을 context 구성 전에 수행
+    question = _get_last_human_message(state.get("messages", []))
+    use_calc = _needs_calculation(state.get("matched_topics", []), question)
+
+    # topics.json desc 주입 — calc 경로에서는 스킵 (산술 집중도 유지)
+    if not use_calc:
+        topic_knowledge = _format_topic_knowledge(state.get("matched_topics", []))
+        if topic_knowledge:
+            context_with_checks = f"[참고 지식]\n{topic_knowledge}\n\n---\n\n{context_with_checks}"
+
+    # precedents/formula를 context 앞에 추가 — retriever 의존도 축소
+    precedents_text = _format_precedents_context(state.get("matched_topics", []))
+    if precedents_text:
+        context_with_checks = f"[큐레이션 선례·공식]\n{precedents_text}\n\n---\n\n{context_with_checks}"
+
     user_msg = GENERATE_USER.format(
         complexity="complex",
         practitioner_terms=_get_related_practitioner_terms(docs),
@@ -164,13 +294,24 @@ async def _run_force_conclusion(
         confusion_point=confusion_point,
         question=state["standalone_query"],
     )
-    result = await generate_agent.run(user_msg)
+
+    # 듀얼트랙: 계산 질문이면 gpt-4.1-mini, 아니면 Gemini Flash (기본값)
+    if use_calc:
+        print(f"[force_conclusion] model=gpt-4.1-mini(calc)")
+        result = await generate_agent.run(
+            user_msg,
+            model=calc_fallback,
+            model_settings={"temperature": 0.0},
+        )
+    else:
+        print(f"[force_conclusion] model=gemini-flash(thinking=high)")
+        result = await generate_agent.run(user_msg)
     return result.output
 
 
 async def _run_generate(
     state: dict, docs: list, context_str: str, confusion_point: str
-) -> GenerateOutput:
+):
     """is_situation=False → generate_agent (개념 답변)."""
     complexity = state.get("complexity", "complex")
     user_msg = GENERATE_USER.format(
@@ -180,13 +321,26 @@ async def _run_generate(
         confusion_point=confusion_point,
         question=state["standalone_query"],
     )
-    # complexity 기반 reasoning 강도 조절: simple → low(빠름), complex → medium(기본값)
-    # Why: 모델을 바꾸면 agent-level model_settings와 충돌 → 같은 모델에서 effort만 조절
-    if complexity == "simple":
+
+    # 듀얼트랙 라우팅: 계산 → gpt-4.1-mini, simple → Gemini low, complex → Gemini high
+    question = state["standalone_query"]
+    use_calc = _needs_calculation(state.get("matched_topics", []), question)
+    if use_calc:
+        model_tag = "gpt-4.1-mini(calc)"
         result = await generate_agent.run(
             user_msg,
-            model_settings={"openai_reasoning_effort": "low", "max_tokens": 4096},
+            model=calc_fallback,
+            model_settings={"temperature": 0.0},
+        )
+    elif complexity == "simple":
+        model_tag = "gemini-flash(thinking=low)"
+        result = await generate_agent.run(
+            user_msg,
+            model_settings={"google_thinking_config": {"thinking_level": "low"}},
         )
     else:
+        model_tag = "gemini-flash(thinking=high)"
         result = await generate_agent.run(user_msg)
+
+    print(f"[generate] model={model_tag}, complexity={complexity}")
     return result.output

@@ -92,3 +92,7 @@ class SSEEvent(BaseModel):
     search_keywords: list[str] | None = None
     # clarify가 결론을 내렸는지 여부 — UI에서 추가 질문 표시 분기용
     is_conclusion: bool = False
+    # clarify가 선택한 결론 가이드 분기 라벨
+    selected_branches: list[str] | None = None
+    # LLM이 structured output으로 명시한 인용 문단 번호
+    cited_paragraphs: list[str] | None = None

@@ -30,7 +30,7 @@ _CUSTOM_CSS = """
     div[data-testid="stExpander"] {
         border: 1px solid #E2E8F0 !important;
         border-radius: 8px !important;
-        margin-bottom: 0.4rem !important;
+        margin-bottom: 0.15rem !important;
         overflow: hidden;
         box-shadow: 0 1px 2px rgba(0,0,0,0.04);
         transition: border-color 0.15s, box-shadow 0.15s;
@@ -38,6 +38,26 @@ _CUSTOM_CSS = """
     div[data-testid="stExpander"]:hover {
         border-color: #CBD5E1 !important;
         box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+
+    /* 근거 패널: 그룹 헤더(h3) 간격 최소화 */
+    div[data-testid="stVerticalBlock"] > div > div > .stMarkdown h3 {
+        margin-top: 0.4rem !important;
+        margin-bottom: 0.1rem !important;
+    }
+
+    /* 근거 패널: 소제목(bold) 간격 최소화 */
+    div[data-testid="stVerticalBlock"] > div > div > .stMarkdown p {
+        margin-bottom: 0.05rem !important;
+    }
+
+    /* Streamlit 블록 간 기본 간격 축소 */
+    div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlockBorderWrapper"] {
+        margin-bottom: 0 !important;
+        padding-bottom: 0 !important;
+    }
+    div[data-testid="stVerticalBlock"] > div {
+        gap: 0 !important;
     }
 
     /* 문단 본문 */
@@ -167,6 +187,7 @@ def _render_sidebar() -> None:
             "합니다.\n\n"
             "- K-IFRS 제1115호 기준서 본문 및 적용지침\n"
             "- 회계기준원·금융감독원 공식 질의회신\n"
+            "- 한국회계기준원 교육자료\n"
             "- 금융감독원 감리지적사례\n\n"
             "**주의**\n\n"
             "전문가적 판단이 개입되어야 하는 "

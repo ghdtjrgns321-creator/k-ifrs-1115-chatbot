@@ -33,7 +33,9 @@ from app.ui.text import (
 
 
 def _render_para_chips(
-    text: str, context_key: str, doc_index: int = 0,
+    text: str,
+    context_key: str,
+    doc_index: int = 0,
     self_ids: set[str] | None = None,
 ) -> None:
     """본문에서 탐지된 문단 참조를 클릭 가능한 pill 태그로 렌더링합니다."""
@@ -119,13 +121,21 @@ def _render_document_expander(
     label = _make_label(doc)
 
     with st.expander(_esc(label), expanded=False):
+        # 문단 번호 배지 — topic_tabs.py의 _render_para_expander와 동일한 스타일
+        if para_num:
+            st.markdown(
+                f'<span style="display:inline-block; background:#e0e7ff; color:#3730a3; '
+                f'font-size:0.8em; font-weight:600; padding:2px 8px; border-radius:4px; '
+                f'margin-bottom:0.5rem;">[문단 {html.escape(para_num)}]</span>',
+                unsafe_allow_html=True,
+            )
         # 본문 — 줄바꿈을 <br>로 변환하여 문단 구분 유지
         display_text = full_content if full_content else full_text
         normalized = _normalize_doc_content(display_text, source)
         cleaned = clean_text(normalized)
         st.markdown(
             f'<div style="line-height:1.85; font-size:0.93em;">'
-            f'{cleaned.replace(chr(10), "<br>")}</div>',
+            f"{cleaned.replace(chr(10), '<br>')}</div>",
             unsafe_allow_html=True,
         )
 
@@ -135,8 +145,7 @@ def _render_document_expander(
 
         # 출처 경로 푸터
         st.html(
-            f'<div class="source-footer">'
-            f'📍 {html.escape(_esc(hierarchy))}</div>'
+            f'<div class="source-footer">📍 {html.escape(_esc(hierarchy))}</div>'
         )
 
 
@@ -144,7 +153,9 @@ def _render_document_expander(
 
 
 def _render_pdr_expander(
-    child_doc: dict, doc_index: int = 0, entry_desc: str = "",
+    child_doc: dict,
+    doc_index: int = 0,
+    entry_desc: str = "",
 ) -> None:
     """QNA/감리사례 — Parent 전문을 카드로 렌더링합니다."""
     parent_id = child_doc.get("parent_id", "")
@@ -155,7 +166,9 @@ def _render_pdr_expander(
     if not parent_id and chunk_id:
         parent_id = re.sub(r"_[QAS]$", "", chunk_id)
 
-    label = title if title else (hierarchy or chunk_id or "출처 없음")
+    # [ID] 제목 형태로 표시하여 AI 답변의 인용과 쉽게 매칭
+    base = title if title else (hierarchy or chunk_id or "출처 없음")
+    label = f"[{parent_id}] {base}" if parent_id else base
 
     with st.expander(_esc(label), expanded=False):
         # 요약 설명 (topic curation desc)

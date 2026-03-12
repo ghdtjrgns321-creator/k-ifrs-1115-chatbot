@@ -1,16 +1,15 @@
 # app/nodes/retrieve.py
-# Vector + BM25 하이브리드 검색
+# 2계층 검색: 핀포인트(큐레이션) 1순위 + 리트리버(벡터+BM25) 2순위
 #
-# 검색 쿼리 보강 전략 (범용):
-#   1. analyze_agent의 search_keywords (공식 용어 3~5개)
-#   2. QUERY_MAPPING으로 사용자 원문의 실무 용어를 공식 용어로 자동 확장
-#      → "쿠폰" → "고객충성제도", "멤버십" → "환불되지 않는 선수금" 등
-#   3. matched_topics 체크리스트에서 문단 번호 + judgment_goal 추출
-#      → tree_matcher가 이미 매칭한 핵심 판단 문단을 검색 쿼리에 반영
+# 검색 전략:
+#   1순위: decision_tree의 precedents/red_flags에서 문서 ID 파싱 → MongoDB 직접 조회
+#          → 큐레이션 데이터이므로 관련성 보장, 리트리버 커버리지 한계 보완
+#   2순위: analyze_agent의 search_keywords + QUERY_MAPPING + 체크리스트 문단으로 하이브리드 검색
+#          → 핀포인트가 커버 못하는 본문 조항/적용지침 보충
 import asyncio
 import re
 
-from app.retriever import search_all
+from app.retriever import search_all, fetch_pinpoint_docs
 
 # RRF 최종 반환 문서 수 — reranker가 이 중 상위 N개를 선별
 RETRIEVAL_LIMIT = 30
@@ -51,16 +50,8 @@ def _extract_checklist_keywords(matched_topics: list[dict]) -> list[str]:
 
     for topic in matched_topics:
         # 1. 체크리스트에서 문단 번호 추출 ("문단 B37", "문단 35" 등)
-        #    tree_type별로 checklist 항목이 str 또는 dict이므로 텍스트를 통합 추출
         for item in topic.get("checklist", []):
-            if isinstance(item, str):
-                text = item
-            elif isinstance(item, dict):
-                # qna_match: question 필드, red_flag: question + paragraph_basis
-                text = " ".join(str(v) for v in item.values())
-            else:
-                continue
-
+            text = item
             for m in re.findall(r"문단\s*(B?\d+)", text):
                 if m not in seen:
                     seen.add(m)
@@ -76,13 +67,60 @@ def _extract_checklist_keywords(matched_topics: list[dict]) -> list[str]:
     return keywords
 
 
-async def retrieve_docs(state: dict) -> dict:
-    """사용자의 독립형 질문으로 Vector + BM25 하이브리드 검색을 수행.
+def _merge_pinpoint_and_retriever(
+    pinpoint_docs: list[dict], retriever_docs: list[dict],
+) -> list[dict]:
+    """핀포인트(1순위) + 리트리버(2순위) 문서를 중복 제거하여 병합합니다.
 
-    검색 쿼리 구성:
-      1. search_keywords가 있으면 keywords 조인, 없으면 standalone_query
-      2. 사용자 원문(standalone_query)을 QUERY_MAPPING으로 스캔하여 공식 용어 추가
+    Why: 핀포인트가 큐레이션 데이터로 관련성이 보장되므로 앞에 배치하고,
+    리트리버는 핀포인트가 커버 못하는 본문/적용지침을 뒤에서 보충.
+    parent_id 기준으로 중복 제거하여 같은 문서가 2번 들어가지 않게 함.
     """
+    merged: list[dict] = []
+    seen_parent_ids: set[str] = set()
+    seen_chunk_ids: set[str] = set()
+
+    # 1순위: 핀포인트 문서
+    for doc in pinpoint_docs:
+        pid = doc.get("parent_id") or ""
+        cid = doc.get("chunk_id") or ""
+        if pid and pid not in seen_parent_ids:
+            seen_parent_ids.add(pid)
+        if cid:
+            seen_chunk_ids.add(cid)
+        merged.append(doc)
+
+    # 2순위: 리트리버 문서 (핀포인트와 중복되는 parent_id 제외)
+    for doc in retriever_docs:
+        pid = doc.get("parent_id") or ""
+        cid = doc.get("chunk_id") or ""
+        # parent_id 중복 체크 (같은 QNA/감리사례 원문이 이미 핀포인트에 있으면 스킵)
+        if pid and pid in seen_parent_ids:
+            continue
+        # chunk_id 중복 체크
+        if cid and cid in seen_chunk_ids:
+            continue
+        if pid:
+            seen_parent_ids.add(pid)
+        if cid:
+            seen_chunk_ids.add(cid)
+        merged.append(doc)
+
+    return merged
+
+
+async def retrieve_docs(state: dict) -> dict:
+    """2계층 검색: 핀포인트(1순위) + 리트리버(2순위).
+
+    핀포인트: decision_tree의 precedents/red_flags 문서 ID → MongoDB 직접 조회
+    리트리버: search_keywords + QUERY_MAPPING + 체크리스트 문단 → 벡터+BM25 하이브리드
+    """
+    matched_topics = state.get("matched_topics", [])
+
+    # ── 1순위: 핀포인트 fetch (큐레이션 문서 직접 조회) ──
+    pinpoint_docs = await asyncio.to_thread(fetch_pinpoint_docs, matched_topics)
+
+    # ── 2순위: 리트리버 (벡터 + BM25 하이브리드) ──
     keywords = state.get("search_keywords", [])
     if keywords:
         search_query = " ".join(keywords)
@@ -90,7 +128,6 @@ async def retrieve_docs(state: dict) -> dict:
         search_query = state["standalone_query"]
 
     # 사용자 원문에서 실무 용어 → 공식 용어 자동 확장
-    # standalone_query + 원본 메시지 모두 스캔 (analyze가 정규화하면서 실무 용어가 빠질 수 있으므로)
     from app.nodes.generate import _get_last_human_message
     messages = state.get("messages", [])
     original_text = _get_last_human_message(messages) or state["standalone_query"]
@@ -100,14 +137,19 @@ async def retrieve_docs(state: dict) -> dict:
         search_query += " " + " ".join(expanded_terms)
 
     # matched_topics 체크리스트에서 핵심 문단 번호/judgment_goal 추출하여 검색 보강
-    # Why: tree_matcher가 매칭한 체크리스트의 핵심 문단이 검색에 누락되는 문제 해결
-    matched_topics = state.get("matched_topics", [])
     if matched_topics:
         checklist_kw = _extract_checklist_keywords(matched_topics)
         if checklist_kw:
             search_query += " " + " ".join(checklist_kw)
 
-    # search_all은 동기 함수 (MongoDB + BM25) → 스레드에서 실행
-    docs = await asyncio.to_thread(search_all, search_query, RETRIEVAL_LIMIT)
+    retriever_docs = await asyncio.to_thread(search_all, search_query, RETRIEVAL_LIMIT)
 
-    return {"retrieved_docs": docs}
+    # ── 병합: 핀포인트 1순위 + 리트리버 2순위 (중복 제거) ──
+    merged = _merge_pinpoint_and_retriever(pinpoint_docs, retriever_docs)
+
+    # 진단 로그: 각 계층별 문서 수 + pinpoint 상세
+    print(f"[retrieve] pinpoint={len(pinpoint_docs)}, retriever={len(retriever_docs)}, merged={len(merged)}")
+    for doc in pinpoint_docs:
+        print(f"  [pinpoint] {doc['chunk_id']} | {doc['source']} | {doc.get('hierarchy', '')[:60]}")
+
+    return {"retrieved_docs": merged}

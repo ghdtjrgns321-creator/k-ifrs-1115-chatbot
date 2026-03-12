@@ -21,7 +21,10 @@
       "WebFetch(domain:mikulskibartosz.name)",
       "WebFetch(domain:python.plainenglish.io)",
       "WebFetch(domain:cookbook.openai.com)",
-      "WebFetch(domain:developers.openai.com)"
+      "WebFetch(domain:developers.openai.com)",
+      "WebFetch(domain:openai.com)",
+      "WebFetch(domain:pricepertoken.com)",
+      "WebFetch(domain:ai.google.dev)"
     ]
   }
 }
