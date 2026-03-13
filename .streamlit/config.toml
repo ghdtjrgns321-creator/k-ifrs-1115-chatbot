@@ -1,0 +1,43 @@
+[theme]
+base = "light"
+
+# ── 슬레이트 그레이 팔레트 ────────────────────────────────────────────────
+primaryColor            = "#0F172A"
+backgroundColor         = "#FFFFFF"
+secondaryBackgroundColor = "#F8FAFC"
+textColor               = "#0F172A"
+borderColor             = "#E2E8F0"
+linkColor               = "#0F172A"
+
+showWidgetBorder  = false
+showSidebarBorder = true
+baseRadius   = "small"
+buttonRadius = "small"
+linkUnderline = false
+
+# ── 타이포그래피 ──────────────────────────────────────────────────────────
+font = "'Plus Jakarta Sans':https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,opsz,wght@0,6..18,300..800;1,6..18,300..800&display=swap"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+
+baseFontSize   = 14
+baseFontWeight = 400
+codeFontSize   = "13px"
+codeFontWeight = 400
+
+headingFontSizes   = ["26px", "20px", "17px", "15px", "13px", "12px"]
+headingFontWeights = [700,    600,    600,    600,    500,    400   ]
+
+redColor    = "#DC2626"
+orangeColor = "#D97706"
+yellowColor = "#CA8A04"
+greenColor  = "#16A34A"
+blueColor   = "#2563EB"
+violetColor = "#7C3AED"
+grayColor   = "#6B7280"
+
+[theme.sidebar]
+backgroundColor          = "#F8FAFC"
+secondaryBackgroundColor = "#F1F5F9"
+textColor                = "#0F172A"
+borderColor              = "#E2E8F0"
+primaryColor             = "#0F172A"

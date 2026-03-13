@@ -1,0 +1,191 @@
+{
+  "timestamp": "20260311_174054",
+  "questions": {
+    "T1": [
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 1,
+        "elapsed": 36.92,
+        "input_tokens": 11962,
+        "output_tokens": 2798,
+        "cost": 0.004293,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- A가 B에게 재화를 이전할 때 A가 그 재화에 대한 **통제**(사용·처분 지시권 및 효익획득)를 상실했습니까? (예: 이후 재고·판매가격·반품 책임이 누구에게 있는지)\n- A가 재화의 가격을 결정하거나 구매자에게 제공되는 주요 서비스(배송·검수·하자보수 등)에 대해",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.606,
+          "details": "3/4 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 2,
+        "elapsed": 18.77,
+        "input_tokens": 4803,
+        "output_tokens": 1510,
+        "cost": 0.00211,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- A가 B에게 재화를 인도하면서 소유권·사용·처분을 제한 없이 이전했습니까?\n- A가 재화에 대한 반품·재매입 의무 또는 재매입 권리를 보유하고 있습니까?\n- A가 재화의 가격을 결정하거나 재고·손실 위험을 부담합니까?\n\n**[조건부 결론]**\n- **Case 1.**",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": false,
+          "score": 0.42,
+          "details": "2/4 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 3,
+        "elapsed": 11.05,
+        "input_tokens": 4803,
+        "output_tokens": 959,
+        "cost": 0.001559,
+        "answer_preview": "**[결론]** A는 100원(계약상 공급가액)으로 매출을 인식해야 합니다 **(문단 31, 문단 9, 문단 B35)**\n\n**[논리적 근거 및 참조문단]**\n- 기업은 고객에게 자산을 이전하여 수행의무를 이행할 때(또는 기간에 걸쳐 이행하는 대로) 수익을 인식한다. \"기업은 고객에게 자산을 이전하여 수행의무를 이행할 때(또는 기간에 걸쳐 이행하는 대로) ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": false,
+          "score": 0.255,
+          "details": "0/4 criteria (kw:33%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 4,
+        "elapsed": 25.43,
+        "input_tokens": 4803,
+        "output_tokens": 2073,
+        "cost": 0.002673,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- A가 B에게 재화를 인도하기 전/후에 그 재화를 **통제**(사용 지시 및 효익 획득)하고 있었나요? (통제 여부)\n- A가 그 거래에 대해 **주된 책임**(제품 결함·배송 문제 등)을 지고 있나요? (주된 책임)\n- A가 재고위험(미판매·반품·손상으로 인한 손실)",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.616,
+          "details": "3/4 criteria (kw:67%)"
+        }
+      }
+    ]
+  },
+  "coverage": {
+    "T1": {
+      "본문": 0,
+      "QNA": 5,
+      "IE": 3,
+      "감리사례": 4,
+      "precedents": true,
+      "formula": false
+    }
+  },
+  "summary": {
+    "gpt-5-mini-low": {
+      "display_name": "gpt-5-mini (low)",
+      "count": 4,
+      "total_time": 92.17518359996029,
+      "total_cost": 0.010636375,
+      "hall_pass": 4,
+      "fmt_pass": 4,
+      "total_score": 1.8970454545454545
+    },
+    "gpt-5-mini-medium": {
+      "display_name": "gpt-5-mini (medium)",
+      "count": 0,
+      "total_time": 0.0,
+      "total_cost": 0.0,
+      "hall_pass": 0,
+      "fmt_pass": 0,
+      "total_score": 0.0
+    },
+    "o4-mini-medium": {
+      "display_name": "o4-mini (medium)",
+      "count": 0,
+      "total_time": 0.0,
+      "total_cost": 0.0,
+      "hall_pass": 0,
+      "fmt_pass": 0,
+      "total_score": 0.0
+    },
+    "gpt-4.1-mini": {
+      "display_name": "gpt-4.1-mini",
+      "count": 0,
+      "total_time": 0.0,
+      "total_cost": 0.0,
+      "hall_pass": 0,
+      "fmt_pass": 0,
+      "total_score": 0.0
+    },
+    "gemini-3-flash-low": {
+      "display_name": "Gemini 3 Flash (low)",
+      "count": 0,
+      "total_time": 0.0,
+      "total_cost": 0.0,
+      "hall_pass": 0,
+      "fmt_pass": 0,
+      "total_score": 0.0
+    },
+    "gemini-3-flash-medium": {
+      "display_name": "Gemini 3 Flash (medium)",
+      "count": 0,
+      "total_time": 0.0,
+      "total_cost": 0.0,
+      "hall_pass": 0,
+      "fmt_pass": 0,
+      "total_score": 0.0
+    },
+    "gemini-3-flash-high": {
+      "display_name": "Gemini 3 Flash (high)",
+      "count": 0,
+      "total_time": 0.0,
+      "total_cost": 0.0,
+      "hall_pass": 0,
+      "fmt_pass": 0,
+      "total_score": 0.0
+    },
+    "solar-mini": {
+      "display_name": "Solar Mini",
+      "count": 0,
+      "total_time": 0.0,
+      "total_cost": 0.0,
+      "hall_pass": 0,
+      "fmt_pass": 0,
+      "total_score": 0.0
+    }
+  }
+}

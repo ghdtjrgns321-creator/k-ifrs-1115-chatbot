@@ -1,0 +1,2122 @@
+{
+  "timestamp": "20260311_185220",
+  "questions": {
+    "T1": [
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 1,
+        "elapsed": 27.5,
+        "input_tokens": 5596,
+        "output_tokens": 1766,
+        "cost": 0.002465,
+        "answer_preview": "- ⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n- **[확인 질문]** A가 B에게 재화를 이전할 당시 다음 중 어떤 사정이 있습니까? (자유서술로 응답)\n- 1) A가 재화의 **법적 소유권·물리적 점유·유의적인 위험과 보상**을 B에게 이전했는지 여부(예: 반품·재매입 약정, 맞춤형 유상사급 여부 등)\n- 2) A가 가격결정권, 재",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.616,
+          "details": "3/4 criteria (kw:67%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 2,
+        "elapsed": 22.43,
+        "input_tokens": 5596,
+        "output_tokens": 1570,
+        "cost": 0.002269,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- A가 B에게 재화를 이전할 당시 B가 해당 재화를 **통제**하고 있었습니까? (예: B가 사용·처분 및 효익을 획득할 권한과 실무적 통제 수단을 보유했는지)\n- A가 재화에 대해 **주된 책임**(예: 고객의 클레임 대응, 제품의 최종 인도 책임)을 계속 부담했습니",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.512,
+          "details": "3/4 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 3,
+        "elapsed": 26.53,
+        "input_tokens": 5596,
+        "output_tokens": 1615,
+        "cost": 0.002315,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- A가 B에게 공급한 완성 의류에 대해 A가 법적 소유권을 유지하였는가? (예: 반품·재매입권, 선도/콜옵션 등) (문단 34, B66)\n- A가 가격을 결정하거나 B의 판매가격에 실질적 영향력을 행사하는가? (문단 B37⑶)\n- A가 재고·반품·품질에 대한 유의적인 ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.512,
+          "details": "3/4 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 4,
+        "elapsed": 24.22,
+        "input_tokens": 5596,
+        "output_tokens": 1531,
+        "cost": 0.00223,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- A가 B에게 재화를 이전할 때 A가 그 재화를 통제(사용·처분 및 효익획득)하였는지 여부(예: 가격결정권, 재고·반품·손실 위험, 주된 책임 여부)는 어떠했습니까?\n- A가 가격을 결정할 재량이 있었는지, 또는 B가 자체적으로 가격을 정하여 최종 고객에 판매했습니까?",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.539,
+          "details": "3/4 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 1,
+        "elapsed": 50.96,
+        "input_tokens": 5596,
+        "output_tokens": 3998,
+        "cost": 0.004698,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- A가 B에게 재화를 이전하면서 **통제**(사용 지시 및 경제적 효익 획득)를 실제로 상실했습니까? (예: A가 여전히 반품·재매입 의무 또는 재고·가격 결정권을 보유하고 있지 않은가)\n- A가 판매대금을 수령했거나, B가 대금을 부담할 확정적 권리가 A에게 있습니까",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.512,
+          "details": "3/4 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 2,
+        "elapsed": 41.93,
+        "input_tokens": 5596,
+        "output_tokens": 3260,
+        "cost": 0.00396,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- 계약 또는 실제 거래에서 A가 B에게 재화를 이전한 시점에 A가 해당 재화에 대해 반품·재매입 의무(또는 권리)를 보유했나요? (예: A가 다시 사야 하는 약정)\n- A와 B 중 누가 배송 전·후의 재고·손실위험(예: 손상, 멸실, 미판매 손실)을 부담하였나요?\n- ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.579,
+          "details": "3/4 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 3,
+        "elapsed": 60.41,
+        "input_tokens": 5596,
+        "output_tokens": 3775,
+        "cost": 0.004475,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- A가 B에게 재화(의류)를 인도할 때 **B가 해당 재화를 통제**(법적 소유권·물리적 점유·유의적 위험과 보상·대가에 대한 현재 권리 중 실질적 지표)를 가지나요?\n- A가 가격을 자유롭게 결정하거나 반품·재고 위험 등 실질적 **재고위험**을 보유하나요?\n- 공급",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": false,
+          "score": 0.484,
+          "details": "3/4 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 4,
+        "elapsed": 41.28,
+        "input_tokens": 5596,
+        "output_tokens": 3095,
+        "cost": 0.003795,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n- **[확인 질문]**\n- A(공급자)가 B에게 제공한 재화에 대해 A가 **가격결정권**(판매가격을 정할 재량)이 있습니까? (문단 B37⑶)\n- A가 B에게 재화를 이전한 후에도 A가 해당 재화에 대한 **재고위험**(예: 재판매 불가 시 손실)을 부담합니까? (문단 B37⑵)\n- 계약",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": false,
+          "score": 0.482,
+          "details": "2/4 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 1,
+        "elapsed": 14.78,
+        "input_tokens": 5515,
+        "output_tokens": 1937,
+        "cost": 0.007295,
+        "answer_preview": "## [결론]\nA는 B에게 완성 의류를 공급하여 **통제**를 이전한 시점에 **대가 100원**을 **수익**으로 인식해야 합니다 **(문단 31, 33, B35)**.\n\n## [혼동점 해소]\n사용자 원문에서 언급한 “세금계산서 발행 금액”은 법적 납세 목적의 문서일 뿐, **수익 인식 금액** 결정 기준이 아닙니다 **(문단 31)**.\n\n## [논리적",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": false,
+          "details": "결론 섹션 미존재"
+        },
+        "scoring": {
+          "passed": false,
+          "score": 0.39,
+          "details": "1/4 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 2,
+        "elapsed": 13.92,
+        "input_tokens": 5515,
+        "output_tokens": 1837,
+        "cost": 0.007075,
+        "answer_preview": "**[결론]** A는 본인으로서 대가 총액인 100원을 수익으로 인식해야 합니다. (문단 31, 33, B35)\n\n**[혼동점 해소]**\n- 사용자가 언급한 “세금계산서 발행 금액”은 청구서 발행 시점과 금액을 나타내지만, 수익 인식 시점과 금액을 결정하는 것은 **고객에게 자산이 통제권을 이전하는 시점**과 **계약상 약정된 대가**입니다. 세금계산서는 ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": false,
+          "score": 0.39,
+          "details": "1/4 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 3,
+        "elapsed": 13.37,
+        "input_tokens": 5515,
+        "output_tokens": 1843,
+        "cost": 0.007088,
+        "answer_preview": "**[결론]** A사는 재화 판매 거래에 대해 **100원**을 총액으로 수익 인식합니다 **(문단 B35)**\n\n**[혼동점 해소]**\n- 사용자가 언급한 \"세금계산서 발행 금액\"은 수익 인식의 결과와 일치할 수는 있지만, 실제 수익 인식 시점과 금액은 **통제 이전 시점**에 받을 것으로 기대되는 **대가**를 기준으로 판단합니다 **(문단 31, 33",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": false,
+          "score": 0.39,
+          "details": "1/4 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 4,
+        "elapsed": 14.25,
+        "input_tokens": 5515,
+        "output_tokens": 1914,
+        "cost": 0.007244,
+        "answer_preview": "**[결론]** A는 B에게 완성된 재화를 이전한 시점에 100원을 수익으로 인식합니다. **(문단 31, B35)**\n\n**[혼동점 해소]**\n- “세금계산서”는 계약상의 거래가격을 반영할 뿐, 수익 인식 금액은 계약상의 대가와 고객에 대한 **통제** 권한이 이전되는 시점을 기준으로 결정됩니다 **(문단 9, 31)**.\n\n**[논리적 근거 및 참조문단",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": false,
+          "score": 0.322,
+          "details": "0/4 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 1,
+        "elapsed": 7.07,
+        "input_tokens": 5235,
+        "output_tokens": 465,
+        "cost": 0.001419,
+        "answer_preview": "**[결론]** A는 B에게 재화를 공급할 때, B가 해당 재화에 대한 통제를 획득하지 못했다면 A는 본인이 아니며, 따라서 A는 100원(공급가액)으로 수익을 인식해야 합니다. 즉, 세금계산서 발행 금액(100원)이 수익 인식 금액과 일치합니다. **(문단 B34A, B35, B36, B37, B66)**\n\n**[논리적 근거 및 참조문단]**\n- 기업이 ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": false,
+          "score": 0.407,
+          "details": "1/4 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 2,
+        "elapsed": 6.62,
+        "input_tokens": 5235,
+        "output_tokens": 454,
+        "cost": 0.00141,
+        "answer_preview": "**[결론]** A는 B에게 공급한 완성된 의류에 대해 본인으로서 통제를 이전하였으면 100원(공급가액)으로 수익을 인식해야 하며, 120원(최종 고객 C에 대한 판매가)으로 수익을 인식하지 않습니다. 즉, A가 B에게 재화를 통제 이전하지 않고 단순 중개 역할이라면 대리인으로서 순액(수수료)만 인식해야 합니다. **(문단 B34~B37, 문단 31, 33",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.605,
+          "details": "2/4 criteria (kw:83%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 3,
+        "elapsed": 10.86,
+        "input_tokens": 5235,
+        "output_tokens": 575,
+        "cost": 0.001507,
+        "answer_preview": "**[결론]** A는 B에게 공급한 완성된 의류에 대해 본인으로서 통제를 이전하였다고 보기 어려우므로, A는 100원이 아닌 100원에 해당하는 대가(즉, 공급가액)로 수익을 인식해야 하며, 120원(최종 고객 C에게 판매된 금액)으로 수익을 인식해서는 안 됩니다. 즉, 세금계산서 발행 금액과 수익 인식 금액은 반드시 일치하지 않으며, 수익 인식은 통제 이",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.568,
+          "details": "3/4 criteria (kw:67%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 4,
+        "elapsed": 5.61,
+        "input_tokens": 5235,
+        "output_tokens": 406,
+        "cost": 0.001372,
+        "answer_preview": "**[결론]** A는 B에게 재화를 공급할 때, B가 해당 재화에 대한 통제를 획득하지 못한 경우가 아니라면, A는 본인으로서 공급가액 100원을 총액 수익으로 인식해야 합니다. 즉, 세금계산서 발행 금액(100원)이 수익 인식 금액과 일치하며, B가 최종 고객 C에게 판매하는 120원은 A의 수익 인식과 무관합니다. **(문단 B34, B35, B37, ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.576,
+          "details": "2/4 criteria (kw:67%)"
+        }
+      }
+    ],
+    "T2": [
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 1,
+        "elapsed": 39.12,
+        "input_tokens": 3510,
+        "output_tokens": 1257,
+        "cost": 0.001696,
+        "answer_preview": "**[결론]**\n- **Case 1.** 기업이 지급할 판매장려금(변동대가)에 관해 불확실성이 해소될 때까지 이미 인식한 수익을 되돌리지 않을 가능성이 **매우 높은(highly probable)** 경우 → 20X1년 매출(거래가격)에서 해당 금액을 차감하여 수익으로 인식한다 **(문단 56, 70)**\n- **Case 2.** 불확실성이 높아 이미 인식",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": false,
+          "score": 0.423,
+          "details": "1/2 criteria (kw:40%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 2,
+        "elapsed": 46.91,
+        "input_tokens": 3510,
+        "output_tokens": 1632,
+        "cost": 0.002071,
+        "answer_preview": "**[결론]** 확정 결론: 변동대가가 포함된 거래에서는 계약에서 약속한 대가의 변동분을 계약 개시 시점에 확정적으로 모두 인식하지 않고, 기업이 재화나 용역을 이전하고 그 대가로 받을 권리를 갖게 될 금액을 추정하여 그 추정치 중 변동대가 추정치의 제약을 반영한 금액만 거래가격에 포함시켜 수행의무(예: **회원권**, **구독 서비스**, **보증**) ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.54,
+          "details": "1/2 criteria (kw:60%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 3,
+        "elapsed": 31.24,
+        "input_tokens": 3510,
+        "output_tokens": 1142,
+        "cost": 0.001581,
+        "answer_preview": "**[결론]**\n- **Case 1.** 기업이 지급할 변동대가가 수익인식 시점(수행의무를 이행할 때)까지 ‘‘변동대가 추정의 제약을 충족’’하여 이미 인식한 누적 수익을 되돌릴 가능성이 매우 낮다고 판단되는 경우 → 추정된 변동대가를 거래가격에 포함하여 수행의무 이행 시점에 그에 배분된 금액만큼 수익에서 차감(인식)한다 **(문단 56, 70)**\n- *",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.92,
+          "details": "2/2 criteria (kw:80%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 4,
+        "elapsed": 41.57,
+        "input_tokens": 3510,
+        "output_tokens": 1472,
+        "cost": 0.001911,
+        "answer_preview": "**[결론]**\n- 변동대가를 포함한 거래에서는 기업이 받을 권리가 되는 금액을 계약의 수행의무를 이행할 때 추정하여 수익에 반영하되, 그 추정치는 \"변동대가와 관련된 불확실성이 나중에 해소될 때, 이미 인식한 누적 수익 금액 중 유의적인 부분을 되돌리지(환원하지) 않을 가능성이 매우 높은(highly probable) 정도까지만\" 거래가격에 포함한다 **",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.62,
+          "details": "1/2 criteria (kw:80%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 1,
+        "elapsed": 32.06,
+        "input_tokens": 3510,
+        "output_tokens": 2445,
+        "cost": 0.002884,
+        "answer_preview": "**[결론]**\n- **Case 1.** 기업이 약속한 **변동대가**를 포함한 금액 중 불확실성이 있어 그 불확실성이 해소될 때까지 이미 인식한 수익이 \"유의적인 부분\"으로 되돌려질 가능성이 남아있는 경우 → 그 불확실성이 해소되어 이미 인식한 누적 수익 금액이 유의적으로 되돌려질 가능성이 매우 낮을 정도까지만 거래가격에 포함하여 수익으로 인식해야 함 *",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.92,
+          "details": "2/2 criteria (kw:80%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 2,
+        "elapsed": 52.08,
+        "input_tokens": 3510,
+        "output_tokens": 4297,
+        "cost": 0.004736,
+        "answer_preview": "[결론]\n- **Case 1.** 추정한 **변동대가**를 포함해도 이미 인식한 누적 수익 금액 중 유의적인 부분을 되돌리지 않을 가능성이 매우 높은(highly probable) 경우 → 그 추정액을 **거래가격**에 포함시켜 해당 **수행의무**에 배분하고, 그 수행의무를 이행할 때 수익으로 인식한다 (문단 50, 56, 46, 70).\n- **Case",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": false,
+          "details": "결론 섹션 미존재"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.84,
+          "details": "2/2 criteria (kw:60%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 3,
+        "elapsed": 64.69,
+        "input_tokens": 8816,
+        "output_tokens": 5706,
+        "cost": 0.006808,
+        "answer_preview": "**[결론]**\n- **Case 1.** 지급액이 고객이 기업에 이전하는 **구별되는 재화나 용역**의 대가가 아닌 경우 → 지급액은 관련 매출이 발생한 기간(예: 20X1년)의 **거래가격**을 감소시키는 방식으로 인식한다 **(문단 70)**.\n- **Case 2.** 지급액이 고객이 제공하는 **구별되는 재화나 용역**의 대가로 지급되는 경우 → 그 ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.84,
+          "details": "2/2 criteria (kw:60%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 4,
+        "elapsed": 34.21,
+        "input_tokens": 3510,
+        "output_tokens": 2952,
+        "cost": 0.003391,
+        "answer_preview": "**[결론]**\n- 기업은 **변동대가**를 계약의 **거래가격** 추정에 포함하되, 그 금액은 계약에서 약속한 재화·용역을 이전하고 그 대가를 “받을 권리”가 생기는 금액으로 추정하고(문단 50), 변동대가와 관련된 불확실성은 “이미 인식한 누적 수익 금액 중 유의적인 부분을 되돌리지(환원하지) 않을 가능성이 매우 높은” 정도까지만 거래가격에 포함하여 배",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.92,
+          "details": "2/2 criteria (kw:80%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 1,
+        "elapsed": 14.01,
+        "input_tokens": 3429,
+        "output_tokens": 1429,
+        "cost": 0.00503,
+        "answer_preview": "**[결론]** 변동대가는 **수행의무**를 이행하는 시점에 거래가격으로 추정된 금액 중 제약 조건을 충족하는 금액만을 포함하여 수익으로 인식해야 합니다 **(문단 46, 50, 56)**\n\n**[논리적 근거 및 참조문단]**\n- “계약에서 약속한 대가에 변동금액이 포함된 경우에 고객에게 약속한 재화나 용역을 이전하고 그 대가로 받을 권리를 갖게 될 금액을",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.84,
+          "details": "2/2 criteria (kw:60%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 2,
+        "elapsed": 22.88,
+        "input_tokens": 3429,
+        "output_tokens": 2517,
+        "cost": 0.007423,
+        "answer_preview": "**[결론]** 변동대가를 포함한 거래에서 수익은 **수행의무**를 이행하는 시점에, 추정된 변동대가 중 **유의적 환원 가능성이 매우 낮은 범위**까지만 포함한 **거래가격**에 따라 인식해야 합니다 (문단 46, 56).\n\n**[혼동점 교정]**\n- 사용자가 “변동대가를 예상 금액 전부로 즉시 수익 인식”이 적절하다고 오해하는 경우, 실제로는 환원 위험",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.84,
+          "details": "2/2 criteria (kw:60%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 3,
+        "elapsed": 17.67,
+        "input_tokens": 3429,
+        "output_tokens": 2132,
+        "cost": 0.006576,
+        "answer_preview": "**[결론]** 변동대가는 **수행의무**를 이행하는 시점에, 추정치 제약 기준을 충족하는 범위 내에서 기대값 또는 최빈값으로 측정하여 수익으로 인식한다 (문단 46, 50, 53, 56)\n\n**[혼동점 교정]**\n- 사용자가 오해하는 \"변동대가를 예상 금액 전부로 즉시 수익 인식\"은 K-IFRS 1115호에서 금지되며, 제약 기준을 적용해야 함\n\n**[논",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.92,
+          "details": "2/2 criteria (kw:80%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 4,
+        "elapsed": 18.03,
+        "input_tokens": 3429,
+        "output_tokens": 2246,
+        "cost": 0.006827,
+        "answer_preview": "**[결론]** 변동대가는 수행의무 이행 시점에 추정된 금액 중 제약 기준 충족 부분만 **거래가격**에 포함하여 수익으로 인식한다 **(문단 50, 56)**\n- 측정 시기: 약속된 재화나 용역 이전 시점에 거래가격을 추정해 배분 **(문단 46, 50)**\n- 추정 방법: 기대값 또는 최빈값 방식 적용 **(문단 53)**\n- 제약 기준: 나중에 불확실",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.92,
+          "details": "2/2 criteria (kw:80%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 1,
+        "elapsed": 7.87,
+        "input_tokens": 3492,
+        "output_tokens": 649,
+        "cost": 0.001218,
+        "answer_preview": "**[결론]** 변동대가가 포함된 거래에서 수익은 고객에게 약속한 재화나 용역을 이전하고 그 대가로 받을 권리를 갖게 될 금액을 추정하여 인식하며, 변동대가와 관련된 불확실성이 해소될 때까지 이미 인식한 누적 수익 중 유의적인 부분을 되돌리지 않을 가능성이 매우 높은 정도까지만 수익에 포함합니다 **(문단 50, 53, 56, 70)**.\n- **변동대가 ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.92,
+          "details": "2/2 criteria (kw:80%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 2,
+        "elapsed": 8.38,
+        "input_tokens": 3492,
+        "output_tokens": 659,
+        "cost": 0.001226,
+        "answer_preview": "**[결론]** 변동대가가 포함된 거래에서 수익은 고객에게 약속한 재화나 용역을 이전하고 그 대가로 받을 권리를 갖게 될 금액을 추정하여 인식하며, 변동대가와 관련된 불확실성이 해소될 때까지 이미 인식한 누적 수익 중 유의적인 부분을 되돌리지 않을 가능성이 매우 높은 정도까지만 수익에 포함합니다 **(문단 50, 53, 56, 70)**.\n- **변동대가 ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.92,
+          "details": "2/2 criteria (kw:80%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 3,
+        "elapsed": 9.23,
+        "input_tokens": 3492,
+        "output_tokens": 718,
+        "cost": 0.001273,
+        "answer_preview": "**[결론]** 변동대가가 포함된 거래에서 수익은 고객에게 약속한 재화나 용역을 이전하고 그 대가로 받을 권리를 갖게 될 금액을 추정한 후, 변동대가와 관련된 불확실성이 해소되어 이미 인식한 누적 수익 중 유의적인 부분을 되돌리지 않을 가능성이 매우 높은 정도까지만 수익에 포함하여 인식해야 합니다 **(문단 50, 53, 56, 70)**.\n- **변동대가",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.92,
+          "details": "2/2 criteria (kw:80%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 4,
+        "elapsed": 10.22,
+        "input_tokens": 3492,
+        "output_tokens": 693,
+        "cost": 0.001253,
+        "answer_preview": "**[결론]** 변동대가가 포함된 거래에서 수익은 고객에게 약속한 재화나 용역을 이전하고 그 대가로 받을 권리를 갖게 될 금액을 추정한 후, 변동대가와 관련된 불확실성이 해소되어 이미 인식한 누적 수익 중 유의적인 부분을 되돌리지 않을 가능성이 매우 높은 정도까지만 수익으로 인식해야 합니다 **(문단 50, 53, 56, 70)**.\n- **변동대가 추정*",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.92,
+          "details": "2/2 criteria (kw:80%)"
+        }
+      }
+    ],
+    "T3": [
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 1,
+        "elapsed": 10.87,
+        "input_tokens": 6065,
+        "output_tokens": 849,
+        "cost": 0.001607,
+        "answer_preview": "**[결론]** A사는 대량구매 조건의 불확실성이 해소되었으므로 전체 거래가격을 단가 90원으로 재측정하여 제품 이전 시점에 그 금액으로 수익을 인식해야 합니다 **(문단 50, 문단 56)**\n\n**[논리적 근거 및 참조문단]**\n- 계약의 대가에 변동금액(볼륨 디스카운트)이 포함된 경우 기업은 \"고객에게 약속한 재화나 용역을 이전하고 그 대가로 받을 권",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": false,
+          "score": 0.485,
+          "details": "0/2 criteria (kw:60%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 2,
+        "elapsed": 12.26,
+        "input_tokens": 6065,
+        "output_tokens": 851,
+        "cost": 0.001609,
+        "answer_preview": "**[결론]** 확정 결론: A사는 2분기에 이미 대량 구매 조건(볼륨 디스카운트) 관련 불확실성이 해소되었으므로, 계약의 거래가격을 할인된 단가(90원)로 재측정하여 해당 시점에 이전된 재화에 대해 할인된 거래가격으로 수익을 인식해야 합니다 **(문단 50, 문단 56)**\n\n**[논리적 근거 및 참조문단]**\n- 계약에서 약속한 대가에 변동금액이 포함된",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.54,
+          "details": "2/2 criteria (kw:60%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 3,
+        "elapsed": 23.37,
+        "input_tokens": 6065,
+        "output_tokens": 2049,
+        "cost": 0.002807,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- A사가 2분기 이전에 이미 1,000개를 개당 100원으로 인식한 수익(기초 인식)이 있었습니까?\n- 계약의 볼륨 할인은 \"B사가 1년 내에 1,000개를 모두 구매하면, 전체 물량에 대해 단가를 90원으로 소급 적용\"으로 명시되어 있나요(소급 적용 여부 확정)?\n-",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.76,
+          "details": "2/2 criteria (kw:80%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 4,
+        "elapsed": 24.4,
+        "input_tokens": 6065,
+        "output_tokens": 2140,
+        "cost": 0.002898,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- A사가 B사에 제품 1,000개에 대해 이미 통제(소유권·대가 청구권)를 이전했고, 대금이 지급되었거나 받을 권리가 확정되었나요?\n- 계약에 반품권, 환불 의무, 또는 추가 조건(예: 품질 불만족 시 환급조항 등)이 있나요?\n- 거래가격에 부가가치세 등 제3자 수취금",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.725,
+          "details": "2/2 criteria (kw:80%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 1,
+        "elapsed": 45.58,
+        "input_tokens": 6065,
+        "output_tokens": 3787,
+        "cost": 0.004545,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n[확인 질문]\n- B사가 1,000개를 모두 인수(통제 이전)가 완료된 시점은 언제인가요? (이미 통제 이전된 상태인지)\n- A사가 1,000개에 대해 이미 청구·수령(대금지급 또는 지급청구서 발행)을 완료했나요?\n- 계약가격에 부가가치세 등 제3자 회수 세금이 포함되어 있나요?\n\n[조건부 ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": false,
+          "details": "결론 섹션 미존재"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.735,
+          "details": "2/2 criteria (kw:80%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 2,
+        "elapsed": 67.2,
+        "input_tokens": 6065,
+        "output_tokens": 5671,
+        "cost": 0.006429,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- 1) 1,000개 전량이 언제(어떤 시점에) A사로부터 고객에게 이전되었나요? (모두 최근 2분기에 이전되었는지, 일부는 이전 분기에 이미 인도되었는지)\n- 2) 계약상 \"전체 물량에 대해 단가를 90원으로 소급 적용\" 하는 규정이 명시적으로 존재합니까? (실질적 재",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.735,
+          "details": "2/2 criteria (kw:80%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 3,
+        "elapsed": 55.88,
+        "input_tokens": 6065,
+        "output_tokens": 5620,
+        "cost": 0.006378,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- 1,000개 전부가 고객에게 통제가 이전되어 이미 인도(수령)된 시점은 언제인가요? (인도 시점이 수익 인식 시점입니다) **(문단 46)**\n- 계약상의 볼륨 디스카운트는 계약서상 명시적이고 소급(전체 물량에 단가 소급적용)으로 적용된다고 확정되나요? **(문단 5",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.725,
+          "details": "2/2 criteria (kw:80%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 4,
+        "elapsed": 51.68,
+        "input_tokens": 6065,
+        "output_tokens": 4896,
+        "cost": 0.005654,
+        "answer_preview": "- ⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n- **[확인 질문]**\n- A사가 해당 1,000개 제품에 대해 이미 개별 인도 시점에 수익(개당 100원)을 인식했습니까?\n- 계약상의 할인(소급 90원 적용)이 이미 청구된 금액의 환불 또는 조정(환불부채)으로 처리되어야 합니까?\n- 해당 제품의 인도(통제 이전)와 계약상 대량구매 ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.62,
+          "details": "2/2 criteria (kw:60%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 1,
+        "elapsed": 42.79,
+        "input_tokens": 5984,
+        "output_tokens": 5130,
+        "cost": 0.014577,
+        "answer_preview": "**[결론]**\nA사는 B사가 2분기에 대량 구매 조건을 충족하여 할인(볼륨 디스카운트)이 확정되었으므로 **변동대가**에 대한 **제약 요건**을 통과하였습니다. 이에 따라 전체 거래가격을 1,000개 × 90원으로 재산정하고, 제품을 이전하는 시점에 단위당 90원으로 **수익**을 인식하며, 1분기에 이미 인식된 매출(500개 × 100원)에 대해서는 ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.51,
+          "details": "1/2 criteria (kw:60%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 2,
+        "elapsed": 21.86,
+        "input_tokens": 5984,
+        "output_tokens": 2438,
+        "cost": 0.008655,
+        "answer_preview": "**[결론]** A사는 2분기에 대량 구매 조건(1,000개 달성)이 확정된 시점에 거래가격을 전체 90,000원(1,000개×90원)으로 재측정하고, 과거 인식한 100,000원에서 10,000원을 수익에서 차감하여 *당기손익*에 반영해야 합니다 **(문단 56, 88)**\n\n**[논리적 근거 및 참조문단]**\n- 계약에 포함된 대량 구매 할인은 **변동",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.74,
+          "details": "1/2 criteria (kw:100%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 3,
+        "elapsed": 25.39,
+        "input_tokens": 5984,
+        "output_tokens": 2740,
+        "cost": 0.009319,
+        "answer_preview": "**[결론]** A사는 2분기에 인도된 1,000개에 대해 단가 90원, 총 90,000원을 수익으로 인식해야 합니다 **(문단 56, 88)**.\n\n**[논리적 근거 및 참조문단]**\n- 계약에 명시된 볼륨 디스카운트는 대가 변동요소에 해당합니다 **(문단 51)**.\n- 변동대가는 불확실성이 해소되어 누적 수익을 환원할 위험이 매우 낮은 시점까지 거래가",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.62,
+          "details": "2/2 criteria (kw:80%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 4,
+        "elapsed": 19.22,
+        "input_tokens": 5984,
+        "output_tokens": 2382,
+        "cost": 0.008532,
+        "answer_preview": "**[결론]** A사는 제품 1,000개에 대한 거래가격을 단가 90원(총 90,000원)으로 재측정하여, 인도 시점에 이 금액을 수익으로 인식해야 합니다 **(문단 56)**\n\n**[논리적 근거 및 참조문단]**\n- \"계약에서 약속한 대가에 변동금액이 포함된 경우에 고객에게 약속한 재화나 용역을 이전하고 그 대가로 받을 권리를 갖게 될 금액을 추정한다.\"",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": false,
+          "score": 0.4,
+          "details": "0/2 criteria (kw:60%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 1,
+        "elapsed": 9.81,
+        "input_tokens": 5704,
+        "output_tokens": 424,
+        "cost": 0.00148,
+        "answer_preview": "**[결론]** A사는 B사가 1,000개를 모두 구매하여 대량 구매 조건이 완전히 충족된 시점인 2분기에, 계약 전체 거래가격을 90원 단가로 재산정하여 그에 따른 수익을 인식해야 합니다. 즉, 변동대가가 확정된 시점에 거래가격을 재평가하고, 수행의무 이행에 따라 수익을 인식합니다. **(문단 50, 56)**\n\n**[논리적 근거 및 참조문단]**\n- 계",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.51,
+          "details": "1/2 criteria (kw:60%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 2,
+        "elapsed": 11.07,
+        "input_tokens": 5704,
+        "output_tokens": 379,
+        "cost": 0.001444,
+        "answer_preview": "**[결론]** A사는 B사가 1,000개를 모두 구매하여 대량 구매 조건이 완전히 충족된 시점인 2분기에, 변동대가 제약 요건을 충족하므로 거래가격을 조정하여 단가 90원으로 소급 적용한 금액을 수익으로 인식해야 합니다 **(문단 50, 56, 46)**.\n\n**[논리적 근거 및 참조문단]**\n- 계약에서 약속한 대가에 변동금액이 포함된 경우, 고객에게 ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.54,
+          "details": "2/2 criteria (kw:60%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 3,
+        "elapsed": 8.56,
+        "input_tokens": 5704,
+        "output_tokens": 426,
+        "cost": 0.001482,
+        "answer_preview": "**[결론]** A사는 B사가 1,000개를 모두 구매하여 대량 구매 조건이 완전히 해소된 시점인 2분기에, 거래가격을 90원 단가로 소급 조정하여 수익을 인식해야 합니다. 즉, 변동대가가 확정된 시점에 거래가격을 재산정하고, 그에 따라 수행의무 이행 시점에 수익을 인식합니다 **(문단 50, 56, 57)**.\n\n**[논리적 근거 및 참조문단]**\n- 계",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.54,
+          "details": "2/2 criteria (kw:60%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 4,
+        "elapsed": 6.51,
+        "input_tokens": 5704,
+        "output_tokens": 392,
+        "cost": 0.001454,
+        "answer_preview": "**[결론]** A사는 B사가 1,000개를 모두 구매하여 대량 구매 조건이 완전히 충족된 시점인 2분기에, 계약 전체 거래가격을 90원 단가로 재산정하여 그에 따른 수익을 인식해야 합니다. 즉, 변동대가가 확정된 시점에 거래가격을 재평가하고, 수행의무 이행에 따라 수익을 인식합니다. **(문단 50, 56)**\n\n**[논리적 근거 및 참조문단]**\n- 계",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": false,
+          "score": 0.49,
+          "details": "1/2 criteria (kw:60%)"
+        }
+      }
+    ],
+    "T4": [
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 1,
+        "elapsed": 16.96,
+        "input_tokens": 5957,
+        "output_tokens": 1622,
+        "cost": 0.002367,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- 고객에게서 받을 대가에 변동요인이 있나요(예: 환불·반품·가격할인·위약금·성과연계 보너스 등)? **(문단 51)**\n- 현재 대가의 변동성 수준으로 인해 수익 환원 위험이 \"매우 높은\"가요(즉, 추정금액이 향후 대부분 환원될 가능성이 높음)? **(문단 56)**\n",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.75,
+          "details": "2/3 criteria (kw:75%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 2,
+        "elapsed": 18.73,
+        "input_tokens": 5957,
+        "output_tokens": 1767,
+        "cost": 0.002512,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- 판매자가 대금 회수 가능성이 높다고 판단하나요(수취 불확실성)?\n- 계약에 환불·반품 또는 판매장려금·위약금 조항이 있나요?\n- 세금(부가가치세 등) 또는 제3자 수수료를 대리수납하나요?\n\n**[조건부 결론]**\n- **Case 1.** 판매자가 대금 회수 가능성이 ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.771,
+          "details": "3/3 criteria (kw:75%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 3,
+        "elapsed": 19.65,
+        "input_tokens": 5957,
+        "output_tokens": 1755,
+        "cost": 0.0025,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- 대금 지급 무기한 연기는 법적 면제(면책)인지 단순 지급연기(기업의 미래 조치나 고객의 신용위험 존재)인지요?\n- 계약서 또는 합의서에 환불·반품·판매장려금·지체상금 등의 조항이 있는지요?\n- 발행한 세금계산서에 부가가치세 등 제3자 회수성 세금이 포함되어 있는지요?",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.721,
+          "details": "2/3 criteria (kw:75%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 4,
+        "elapsed": 19.48,
+        "input_tokens": 5957,
+        "output_tokens": 2046,
+        "cost": 0.002791,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- 계약상 대금 회수가 기업에게 사실상 ‘확실하게’ 기대되는가(고객의 지급능력·의사에 대한 근거 포함)?\n- 판매자가 상품에 대한 재고·가격결정·신용 위험을 계속 보유하는가(예: 소유권·반품권·지급조건에 관한 조항)?\n- 고객에게 반품·환불·판매장려금·위약금 조항 등이 ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.721,
+          "details": "2/3 criteria (kw:75%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 1,
+        "elapsed": 48.26,
+        "input_tokens": 5957,
+        "output_tokens": 5074,
+        "cost": 0.005819,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- 고객에게 재화의 **통제**가 실질적으로 이전되었습니까? 예: 고객이 해당 재화를 처분·사용할 권리와 실질적 통제를 보유합니까? **(문단 31)**\n- 해당 거래에서 판매대가에 대한 **환불·반품** 또는 대금 일부를 돌려줄 가능성이 있습니까? **(문단 51, 문",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.771,
+          "details": "3/3 criteria (kw:75%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 2,
+        "elapsed": 44.11,
+        "input_tokens": 5957,
+        "output_tokens": 4459,
+        "cost": 0.005204,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- 계약서나 합의서에 **할인·환불·리베이트·장려금·위약금** 등 대가를 변동시키는 조항이 있나요? (예: 대금 일부 환불, 지급 보류 합의 등) **(문단 51)**\n- 환불·반품 또는 대금의 일부 환급이 발생할 것으로 실질적으로 예상되나요? **(문단 55)**\n- ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.721,
+          "details": "2/3 criteria (kw:75%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 3,
+        "elapsed": 57.91,
+        "input_tokens": 5957,
+        "output_tokens": 4627,
+        "cost": 0.005372,
+        "answer_preview": "- ⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n- **[확인 질문]**\n- 고객이 실질적으로 재화의 **통제(수령·사용·처분 권한)**를 획득했습니까(소유권·수령확인·기업의 지속적 관여 부재 등)? (문단 31)\n- 대금 회수 가능성(회수가 '매우 높음' 또는 불확실함)은 어떠합니까? 즉, 대금이 결국 회수될 것으로 합리적으로 기대할 ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.771,
+          "details": "3/3 criteria (kw:75%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 4,
+        "elapsed": 45.6,
+        "input_tokens": 5957,
+        "output_tokens": 4240,
+        "cost": 0.004985,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- 고객에게 재화의 **통제**(소유권·사용·실용적 통제 포함)가 실제로 이전되었나요? (예: 고객이 재화를 처분·사용·보관할 권리와 실질적 통제를 가지는지)\n- 대금의 **회수 가능성**(collectibility)은 얼마나 확실합니까? 무기한 연기는 단순 연기인지, ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.721,
+          "details": "2/3 criteria (kw:75%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 1,
+        "elapsed": 40.37,
+        "input_tokens": 5876,
+        "output_tokens": 4237,
+        "cost": 0.012553,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n계약서에 할인율·가격할인 등 대가 조정 조건이 명시되어 있습니까?\n\n**[조건부 결론]**\n- **Case 1.** 할인율 또는 가격할인 금액이 계약서에 명시되어 대가 변동을 예측할 수 있는 경우 → 계약 체결 시점에 약정 금액에서 할인액을 공제한 거래가격을 성과 이행 ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.621,
+          "details": "2/3 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 2,
+        "elapsed": 35.07,
+        "input_tokens": 5876,
+        "output_tokens": 3726,
+        "cost": 0.011429,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n계약에 환불, 가격할인, 리베이트, 위약금 등 **변동대가** 항목이 포함되어 있나요?\n\n**[조건부 결론]**\n- Case 1. 계약에 변동대가 항목이 없으면 → 재화 통제 이전 시점에 전액 수익 인식 **(문단 31)**\n- Case 2. 계약에 변동대가 항목이 있으",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.571,
+          "details": "2/3 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 3,
+        "elapsed": 27.99,
+        "input_tokens": 5876,
+        "output_tokens": 3248,
+        "cost": 0.010377,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n이번 계약에서 고객의 대금 회수 가능성이 충분히 높은지와, 대금 지급이 1년을 초과하는 실질적 금융요소가 존재하는지를 알려주세요.\n\n**[조건부 결론]**\n- **Case 1.** 고객의 대금 회수 가능성이 높고, 지급시기가 1년 이내이거나 금융요소가 미미하면 → 약정금",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.721,
+          "details": "2/3 criteria (kw:75%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 4,
+        "elapsed": 24.99,
+        "input_tokens": 5876,
+        "output_tokens": 2875,
+        "cost": 0.009557,
+        "answer_preview": "**[결론]** 재화가 고객에게 이전된 시점에 수익을 인식해야 합니다 **(문단 31)**\n\n**[혼동점 해소]**\n- 사용자가 언급한 “세금계산서 발행”은 수익 인식 자체의 결정적 요건이 아닙니다. 핵심은 고객에게 재화에 대한 **통제**가 이전되었는지 여부이며, 통제가 이전되면 대금 지급 시기와 관계없이 수익을 인식합니다 **(문단 31)**.\n\n**[",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": false,
+          "score": 0.405,
+          "details": "2/3 criteria (kw:25%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 1,
+        "elapsed": 8.59,
+        "input_tokens": 5596,
+        "output_tokens": 382,
+        "cost": 0.001425,
+        "answer_preview": "**[결론]** 대금 지급이 무기한 연기되었더라도, 고객에게 재화의 통제가 이전되어 수행의무가 이행된 경우에는 수익을 인식할 수 있으나, 대가의 지급 가능성에 불확실성이 크고 변동대가 제약 요건을 충족하지 못하면 수익 인식은 제한됩니다. 즉, 단순히 세금계산서 발행과 물건 인도만으로 수익을 100% 인식하는 것은 부적절하며, 대가 지급 연기 합의가 변동대가",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": false,
+          "details": "논리적 근거 섹션 미존재"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.571,
+          "details": "3/3 criteria (kw:25%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 2,
+        "elapsed": 14.71,
+        "input_tokens": 5596,
+        "output_tokens": 739,
+        "cost": 0.00171,
+        "answer_preview": "**[결론]** 대금 지급이 무기한 연기되었더라도, 고객에게 재화의 통제가 이전되어 수행의무가 이행된 경우에는 수익을 인식할 수 있으나, 대가의 변동 가능성과 회수 가능성에 대한 제약 요건을 충족해야 합니다. 즉, 단순히 세금계산서 발행과 물건 인도만으로 수익을 100% 인식하는 것은 부적절하며, 대금 지급 연기 합의가 변동대가로 작용할 수 있으므로 거래가",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.555,
+          "details": "2/3 criteria (kw:50%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 3,
+        "elapsed": 18.49,
+        "input_tokens": 5596,
+        "output_tokens": 543,
+        "cost": 0.001554,
+        "answer_preview": "**[결론]** 대금 지급이 무기한 연기되었더라도, 고객에게 재화의 통제가 이전되어 수행의무가 이행된 경우에는 수익을 인식할 수 있으나, 대가의 지급 가능성에 불확실성이 크고 변동대가 제약 요건을 충족하지 못하면 수익 인식은 제한됩니다. 즉, 단순히 세금계산서 발행과 물건 인도만으로 수익을 100% 인식하는 것은 부적절하며, 대가 지급 연기와 관련된 변동대",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": false,
+          "score": 0.455,
+          "details": "2/3 criteria (kw:25%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 4,
+        "elapsed": 15.77,
+        "input_tokens": 5596,
+        "output_tokens": 709,
+        "cost": 0.001686,
+        "answer_preview": "**[결론]** 대금 지급이 무기한 연기되었더라도, 고객에게 재화의 통제가 이전되어 수행의무가 이행된 경우에는 수익을 인식할 수 있으나, 대가의 회수 가능성에 대한 불확실성이 크다면 변동대가 제약 요건을 충족하지 못해 수익 인식이 제한됩니다. 즉, 단순히 세금계산서 발행과 물건 인도만으로 수익을 100% 인식하는 것은 부적절하며, 대가 지급 연기 합의가 수",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.721,
+          "details": "2/3 criteria (kw:75%)"
+        }
+      }
+    ],
+    "T5": [
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 1,
+        "elapsed": 29.79,
+        "input_tokens": 5462,
+        "output_tokens": 2248,
+        "cost": 0.002931,
+        "answer_preview": "【결론】 확정 결론 **is_conclusion=True** (문단 39)\n- **진행률(당기)**: 원가기준 투입법 적용하되, 비정상적 낭비원가는 진행률 산정에서 제외하고 미설치 고가자재(엘리베이터)는 진행률 산정에서 제외한 뒤 해당 자재원가만 이익 없이 별도로 수익에 추가 인식합니다 **(문단 39, 문단 B19⑴, 문단 B19⑵)**. \"기업이 수행의",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": false,
+          "details": "결론 섹션 미존재; 논리적 근거 섹션 미존재"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.863,
+          "details": "2/3 criteria (kw:100%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 2,
+        "elapsed": 31.56,
+        "input_tokens": 5462,
+        "output_tokens": 2267,
+        "cost": 0.00295,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- 계약이 문단 9의 요건을 충족하여 K-IFRS 제1115호가 적용되는 계약인가요? (예: 대가 회수 가능성, 고객 여부 등)\n- 특수 엘리베이터(1,500만원)는 이미 고객(B사)의 **통제** 하에 있나요(고객이 사용·처분·보호할 권한을 보유)?\n- 폐기된 100만",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.772,
+          "details": "3/3 criteria (kw:67%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 3,
+        "elapsed": 39.08,
+        "input_tokens": 5462,
+        "output_tokens": 1668,
+        "cost": 0.002351,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- 계약상 A건설사의 진행률 산정에 사용하기로 한 기본 원칙(산출법 또는 투입법) 합의가 있습니까? (즉, 기업이 산출법 대신 **원가기준 투입법**을 적용하려는 근거가 있습니까?)\n- 특수 엘리베이터는 고객(B사)이 통제하나 설치·완성 책임 또는 설치비용을 A가 부담합",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.688,
+          "details": "2/3 criteria (kw:67%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (low)",
+        "model_key": "gpt-5-mini-low",
+        "is_reasoning": true,
+        "repeat": 4,
+        "elapsed": 34.54,
+        "input_tokens": 5462,
+        "output_tokens": 2753,
+        "cost": 0.003436,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- 계약의 진전도를 합리적으로 측정할 수 있습니까(기업이 산출법·투입법 중 하나로 수행도 측정 가능)?\n- 엘리베이터는 고객(B사)이 '통제'하고 있으며 회사(A건설사)는 그 자산에 대해 대체 용도가 없고 이익 없이 원가만 인식하는 합의가 있습니까?\n- 폐기된 100만 ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.785,
+          "details": "3/3 criteria (kw:67%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 1,
+        "elapsed": 81.25,
+        "input_tokens": 5462,
+        "output_tokens": 7004,
+        "cost": 0.007687,
+        "answer_preview": "- ⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n- **[확인 질문]**\n- 이전에 이 계약으로 인식한 누적 수익(또는 매출액)이 있습니까? (있다면 금액)\n- 엘리베이터는 B사가 실질적으로 **통제**하고 설치·완성 책임이 B사에게 있습니까?\n- 폐기된 100만 원은 회사 과실로 인한 '비정상적 낭비'로 보상이나 재사용·복구 가능성이 ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.884,
+          "details": "2/3 criteria (kw:100%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 2,
+        "elapsed": 64.93,
+        "input_tokens": 5462,
+        "output_tokens": 6032,
+        "cost": 0.006715,
+        "answer_preview": "- ⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n- **[확인 질문]**\n- 1) 전기 누적 인식수익이 있나요? (전기 인식액이 0인지 여부)\n- 2) A사가 엘리베이터의 '설치' 책임(주요 설치작업)을 수행하나요?\n- 3) 폐기된 자재의 100만 원 원가는 계약 수행 중 통상적 비용이 아니라 실제로 '비정상적' 손실인가요?\n- **[조",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.873,
+          "details": "3/3 criteria (kw:83%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 3,
+        "elapsed": 84.59,
+        "input_tokens": 5462,
+        "output_tokens": 6946,
+        "cost": 0.007629,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n[확인 질문]\n- 총예상원가 4,000만 원에 엘리베이터 1,500만 원이 포함된 수치인가요? (엘리베이터 대금이 계약 총원가에 이미 반영되어 있는지 확인) (문단 B19⑵)\n- 폐기된 100만 원은 회사 책임의 비정상적 낭비로서 보상(보험·제3자 환급) 가능성이 없는 비용인가요? (문단 B",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": false,
+          "details": "결론 섹션 미존재"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.897,
+          "details": "3/3 criteria (kw:100%)"
+        }
+      },
+      {
+        "model": "gpt-5-mini (medium)",
+        "model_key": "gpt-5-mini-medium",
+        "is_reasoning": true,
+        "repeat": 4,
+        "elapsed": 69.33,
+        "input_tokens": 5462,
+        "output_tokens": 7144,
+        "cost": 0.007827,
+        "answer_preview": "⚠️ **더 정확한 판단을 위해 다음 질문을 확인해 주세요.**\n\n**[확인 질문]**\n- 총 예상원가 4,000만 원에는 엘리베이터 1,500만 원과 폐기 100만 원이 이미 포함되어 있습니까?\n- 엘리베이터는 현재 고객(B)이 통제하고 있으며, A건설사가 앞으로 설치할 의무가 전혀 없는가요? (A가 설치해야 한다면 처리 달라짐)\n- 100만 원의 폐기비",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.926,
+          "details": "3/3 criteria (kw:100%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 1,
+        "elapsed": 28.75,
+        "input_tokens": 5381,
+        "output_tokens": 3181,
+        "cost": 0.009958,
+        "answer_preview": "**[결론]** \n이번 당기에 인식할 **공사진행률**은 (실제 진행 관련 원가 5백만 원) ÷ (총 예상원가 40백만 원 – 15백만 원 – 1백만 원) = 5/24 ≈ 20.83%이며, **당기 매출(수익)**은\n(계약가격 50백만 원 – 특수 엘리베이터 원가 15백만 원) × 5/24 + 15백만 원 = 약 22.29백만 원입니다.\n\n**[혼동점 해소",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.64,
+          "details": "2/3 criteria (kw:67%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 2,
+        "elapsed": 19.6,
+        "input_tokens": 5381,
+        "output_tokens": 2158,
+        "cost": 0.007707,
+        "answer_preview": "**[결론]**\n공사진행률은 5,000만 원 계약에 대한 투입법(원가기준) 적용 시, 비정상적 낭비원가(100만 원) 및 미설치 엘리베이터 원가(1,500만 원)를 분자·분모에서 제외하여 산정하며, 이 경우 진행률은 5,000만 원 기준이 아닌 (누적 발생원가 2,100만 원 − 1,600만 원) ÷ (총 예상원가 4,000만 원 − 1,600만 원) = ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.926,
+          "details": "3/3 criteria (kw:100%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 3,
+        "elapsed": 23.4,
+        "input_tokens": 5381,
+        "output_tokens": 2839,
+        "cost": 0.009205,
+        "answer_preview": "**[결론]**\n당기 공사 진행률은 원가기준 투입법을 적용하되, 비효율적 폐기원가와 미설치 설비원가를 분자·분모에서 제외하여 산정하고, 이로부터 산정된 진행률에 계약가격을 곱한 금액과 미설치 설비원가를 합산하여 당기 수익을 인식합니다.\n\n- 공사 진행률 = (2,100만 원 - 1,500만 원 - 100만 원) / (4,000만 원 - 1,500만 원 - ",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.633,
+          "details": "2/3 criteria (kw:67%)"
+        }
+      },
+      {
+        "model": "o4-mini (medium)",
+        "model_key": "o4-mini-medium",
+        "is_reasoning": true,
+        "repeat": 4,
+        "elapsed": 17.88,
+        "input_tokens": 5381,
+        "output_tokens": 2237,
+        "cost": 0.007881,
+        "answer_preview": "**[결론]**\nA건설사의 **진행률**은 (총 발생원가 2,100만 원에서 비효율적 낭비 원가 100만 원과 미설치 엘리베이터 원가 1,500만 원을 제외한 500만 원) ÷ (총 예상원가 4,000만 원에서 낭비 원가 100만 원과 엘리베이터 원가 1,500만 원을 제외한 2,400만 원) = 20.83%입니다 **(문단 39, 문단 B19⑴, 문단 B",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.837,
+          "details": "3/3 criteria (kw:100%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 1,
+        "elapsed": 11.33,
+        "input_tokens": 5101,
+        "output_tokens": 647,
+        "cost": 0.001538,
+        "answer_preview": "**[결론]**\n1) 미설치된 특수 엘리베이터 대금 1,500만 원은 공사진행률 산정에서 제외하고, 원가에서만 반영하며, 이 원가에 대해서는 이익 없이 별도로 수익을 인식해야 합니다.\n2) 비정상적인 낭비 원가 100만 원은 공사진행률 산정의 분자와 분모에서 모두 제외하고, 당기 비용으로 처리해야 합니다. 따라서 당기 공사진행률은 (2,100만 원 - 1,",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.855,
+          "details": "2/3 criteria (kw:100%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 2,
+        "elapsed": 13.21,
+        "input_tokens": 5101,
+        "output_tokens": 537,
+        "cost": 0.00145,
+        "answer_preview": "**[결론]**\n1) 미설치된 특수 엘리베이터 대금 1,500만 원은 공사진행률 산정에서 제외하고, 원가에서 차감한 후 별도로 이익 없이 수익에 더해야 합니다.\n2) 비정상적인 낭비 원가 100만 원은 공사진행률 산정의 분자와 분모에서 모두 제외하고, 당기 비용으로 처리해야 합니다. 따라서 당기 공사진행률은 (2,100만 원 - 1,500만 원 - 100만",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.876,
+          "details": "2/3 criteria (kw:100%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 3,
+        "elapsed": 9.61,
+        "input_tokens": 5101,
+        "output_tokens": 705,
+        "cost": 0.001584,
+        "answer_preview": "**[결론]**\n1) 미설치된 특수 엘리베이터 대금 1,500만 원은 공사진행률 산정에서 제외하고, 원가에서만 반영하며 이익 없이 별도로 수익에 더해야 합니다.\n2) 비정상적인 낭비 원가 100만 원은 공사진행률 산정의 분자와 분모에서 모두 제외하고, 당기 비용으로 처리해야 합니다. 따라서 당기 공사진행률은 (2,100만 원 - 1,500만 원 - 100만",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.863,
+          "details": "2/3 criteria (kw:100%)"
+        }
+      },
+      {
+        "model": "gpt-4.1-mini",
+        "model_key": "gpt-4.1-mini",
+        "is_reasoning": false,
+        "repeat": 4,
+        "elapsed": 11.46,
+        "input_tokens": 5101,
+        "output_tokens": 615,
+        "cost": 0.001512,
+        "answer_preview": "**[결론]**\n1) 미설치된 특수 엘리베이터 대금 1,500만 원은 공사진행률 산정에서 제외하고, 원가에서 차감한 후 별도로 원가만큼 수익에 더하는 방식으로 처리해야 합니다.\n2) 비정상적인 낭비 원가 100만 원은 공사진행률 산정의 분자와 분모에서 모두 제외하고, 당기 비용으로 처리해야 합니다. 따라서 당기 공사진행률은 (2,100만 원 - 1,500만",
+        "error": null,
+        "hallucination": {
+          "passed": true,
+          "details": "OK"
+        },
+        "format": {
+          "passed": true,
+          "details": "OK"
+        },
+        "scoring": {
+          "passed": true,
+          "score": 0.839,
+          "details": "2/3 criteria (kw:100%)"
+        }
+      }
+    ]
+  },
+  "coverage": {
+    "T1": {
+      "본문": 0,
+      "QNA": 4,
+      "IE": 0,
+      "감리사례": 4,
+      "precedents": true,
+      "formula": false
+    },
+    "T2": {
+      "본문": 0,
+      "QNA": 12,
+      "IE": 1,
+      "감리사례": 1,
+      "precedents": false,
+      "formula": false
+    },
+    "T3": {
+      "본문": 0,
+      "QNA": 5,
+      "IE": 0,
+      "감리사례": 0,
+      "precedents": true,
+      "formula": true
+    },
+    "T4": {
+      "본문": 1,
+      "QNA": 9,
+      "IE": 0,
+      "감리사례": 1,
+      "precedents": true,
+      "formula": true
+    },
+    "T5": {
+      "본문": 1,
+      "QNA": 7,
+      "IE": 0,
+      "감리사례": 2,
+      "precedents": true,
+      "formula": true
+    }
+  },
+  "retrieval_targets": {
+    "T1": {
+      "passed": false,
+      "score": 0.2,
+      "details": "1/5 (miss: 기준서:문단 53, 감리지적사례:FSS-CASE-2023-2405-01, 적용사례:사례 20, 적용사례:사례 21)"
+    },
+    "T2": {
+      "passed": false,
+      "score": 0.2,
+      "details": "1/5 (miss: 기준서:문단 87, 기준서:문단 88, 적용사례:사례 24, 질의회신:QNA-SSI-202412046)"
+    },
+    "T3": {
+      "passed": false,
+      "score": 0.0,
+      "details": "0/3 (miss: 기준서:문단 6, 기준서:BC52, 질의회신:QNA-2021-I-KQA008)"
+    },
+    "T4": {
+      "passed": false,
+      "score": 0.0,
+      "details": "0/5 (miss: 기준서:문단 B56, 기준서:문단 B58, 감리지적사례:FSS-CASE-2025-2512-02, 적용사례:사례 54, 적용사례:사례 55)"
+    },
+    "T5": {
+      "passed": false,
+      "score": 0.0,
+      "details": "0/5 (miss: 기준서:문단 91, 기준서:문단 92, 기준서:문단 93, 질의회신:QNA-SSI-35584, 적용사례:사례 36)"
+    }
+  },
+  "summary": {
+    "gpt-5-mini-low": {
+      "display_name": "gpt-5-mini (low)",
+      "count": 20,
+      "total_time": 540.2026274000527,
+      "total_cost": 0.047295000000000004,
+      "hall_pass": 20,
+      "fmt_pass": 19,
+      "total_score": 13.262378218272959
+    },
+    "gpt-5-mini-medium": {
+      "display_name": "gpt-5-mini (medium)",
+      "count": 20,
+      "total_time": 1093.9387775000068,
+      "total_cost": 0.10898625000000003,
+      "hall_pass": 20,
+      "fmt_pass": 17,
+      "total_score": 14.957796422875369
+    },
+    "o4-mini-medium": {
+      "display_name": "o4-mini (medium)",
+      "count": 20,
+      "total_time": 456.215205000015,
+      "total_cost": 0.1743082,
+      "hall_pass": 20,
+      "fmt_pass": 19,
+      "total_score": 12.635619161540214
+    },
+    "gpt-4.1-mini": {
+      "display_name": "gpt-4.1-mini",
+      "count": 20,
+      "total_time": 204.97394669993082,
+      "total_cost": 0.028996000000000008,
+      "hall_pass": 20,
+      "fmt_pass": 19,
+      "total_score": 13.650913647755754
+    }
+  }
+}
