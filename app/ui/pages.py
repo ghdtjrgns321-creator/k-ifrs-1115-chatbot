@@ -64,6 +64,13 @@ def _render_home() -> None:
     좌우 2단 레이아웃: 좌측(5단계 수익인식 모형) / 우측(후속 처리·특수 거래)
     하단에 자유 텍스트 입력 → /chat SSE → ai_answer 페이지로 직행
     """
+    # ── 구분선 — 헤더 바로 아래 (topic_browse와 동일) ────────────────────────
+    st.markdown(
+        "<hr style='margin-top:-2.5rem; margin-bottom:0; "
+        "border:none; border-top:1px solid #E2E8F0;'>",
+        unsafe_allow_html=True,
+    )
+
     st.html(
         """
         <div style='text-align: center; padding: 0 0 0.5rem;'>
@@ -81,19 +88,21 @@ def _render_home() -> None:
     left_col, right_col = st.columns(2, gap="small")
 
     with left_col:
-        st.markdown("**📋 5단계 수익인식 모형**")
-        st.markdown(
-            "<hr style='border: none; border-top: 1.5px dashed #E2E8F0; margin: 5px 0 20px 0;'>",
-            unsafe_allow_html=True,
+        # Why: 상단 실선·하단 점선 사이에 헤더가 수직 중앙 배치되도록 대칭 마진
+        # Why: st.markdown bold는 <p> 기본 마진이 커서 점선과 간격 제어 불가 → st.html로 직접 제어
+        st.html(
+            "<hr style='border:none; border-top:1px solid #E2E8F0; margin:0.3rem 0 0;'>"
+            "<p style='font-weight:700; margin:0; padding:1.2rem 0 4px;'>📋 5단계 수익인식 모형</p>"
+            "<hr style='border:none; border-top:1.5px dashed #E2E8F0; margin:0;'>"
         )
         with st.container(border=True, gap="xsmall"):
             _render_topic_column(HOME_TOPICS_LEFT, "L")
 
     with right_col:
-        st.markdown("**📋 후속 처리 · 특수 거래**")
-        st.markdown(
-            "<hr style='border: none; border-top: 1.5px dashed #E2E8F0; margin: 5px 0 20px 0;'>",
-            unsafe_allow_html=True,
+        st.html(
+            "<hr style='border:none; border-top:1px solid #E2E8F0; margin:0.3rem 0 0;'>"
+            "<p style='font-weight:700; margin:0; padding:1.2rem 0 4px;'>📋 후속 처리 · 특수 거래</p>"
+            "<hr style='border:none; border-top:1.5px dashed #E2E8F0; margin:0;'>"
         )
         with st.container(border=True, gap="xsmall"):
             _render_topic_column(HOME_TOPICS_RIGHT, "R")
@@ -106,26 +115,37 @@ def _render_home() -> None:
         "AI가 상황을 분석하고 사실에 기반한 답변을 드립니다."
     )
 
-    with st.form("search_form", clear_on_submit=False):
+    # Why: st.form 제출은 fragment 안에서도 전체 rerun을 유발하므로
+    #      일반 위젯 + st.button을 사용해야 fragment rerun만 발생 → 스크롤 유지
+    @st.fragment
+    def _home_search_fragment():
         query = st.text_area(
             "상황 입력",
             placeholder="상세한 거래 구조나 애매한 회계 상황을 자유롭게 입력해 주세요...\n"
             "(예: 반품 가능성이 높을 때 매출 인식 시기는?)",
             label_visibility="collapsed",
             height=100,
+            key="home_search_input",
         )
-        submitted = st.form_submit_button(
-            "검색하기", use_container_width=True, type="primary"
-        )
+        if st.button(
+            "검색하기", use_container_width=True, type="primary", key="home_search_btn"
+        ):
+            if query and query.strip():
+                st.session_state.search_query = query.strip()
+                _call_chat(query.strip(), use_cache=False)
 
-    # 홈에서 검색 → /chat SSE 직행 (단계별 진행 표시 + split view 결과)
-    if submitted and query:
-        st.session_state.search_query = query.strip()
-        _call_chat(query.strip(), use_cache=False)
+    _home_search_fragment()
 
 
 def _render_evidence() -> None:
     """[근거 열람] 카테고리별 아코디언 + AI 질문 입력창을 렌더링합니다."""
+    # ── 구분선 — 헤더 바로 아래 ─────────────────────────────────────────────
+    st.markdown(
+        "<hr style='margin-top:-2.5rem; margin-bottom:0; "
+        "border:none; border-top:1px solid #E2E8F0;'>",
+        unsafe_allow_html=True,
+    )
+
     # ── 상단 헤더: 질문 카드 + 새 검색 버튼 ──────────────────────────────────
     current_query = (
         st.session_state.get("search_query")
@@ -163,27 +183,39 @@ def _render_evidence() -> None:
 
     st.divider()
 
-    # AI 질문 입력창
-    st.markdown("#### :material/lightbulb: AI에게 해석을 물어보세요")
-    st.caption("위 조항들을 바탕으로 AI가 실무 관점의 답변을 드립니다.")
+    @st.fragment
+    def _ai_question_fragment():
+        st.markdown("#### :material/lightbulb: AI에게 해석을 물어보세요")
+        st.caption("위 조항들을 바탕으로 AI가 실무 관점의 답변을 드립니다.")
 
-    with st.form("ai_question_form", clear_on_submit=True):
         ai_q = st.text_area(
             "AI 질문",
             placeholder="예: 반품 예상 수량을 합리적으로 추정할 수 없을 때 수익을 전혀 인식하면 안 되나요?",
             label_visibility="collapsed",
             height=100,
+            key="evidence_ai_input",
         )
-        submitted = st.form_submit_button(
-            "AI에게 질문하기", use_container_width=True, type="primary"
-        )
+        if st.button(
+            "AI에게 질문하기",
+            use_container_width=True,
+            type="primary",
+            key="evidence_ai_btn",
+        ):
+            if ai_q and ai_q.strip():
+                _call_chat(ai_q.strip(), use_cache=False)
 
-    if submitted and ai_q:
-        _call_chat(ai_q, use_cache=False)
+    _ai_question_fragment()
 
 
 def _render_ai_answer() -> None:
     """[AI 답변] Split View — 좌(근거 문서) + 우(AI 답변 + 꼬리질문) 동시 표시."""
+    # ── 구분선 — 헤더 바로 아래 ─────────────────────────────────────────────
+    st.markdown(
+        "<hr style='margin-top:-2.5rem; margin-bottom:0; "
+        "border:none; border-top:1px solid #E2E8F0;'>",
+        unsafe_allow_html=True,
+    )
+
     # 헤더: 질문 + 새 검색 버튼
     col1, col2 = st.columns([5, 1])
     with col1:
@@ -234,16 +266,25 @@ def _render_ai_answer() -> None:
 
         st.divider()
 
-        # 자유 입력창 — 새로운 주제 가능성이 있으므로 full pipeline 수행
-        st.markdown("#### :material/forum: 추가 질문")
-        with st.form("followup_form", clear_on_submit=True):
-            new_q = st.text_input(
+        # Why: @st.fragment로 감싸서 입력 시 스크롤 유지 (docs §3 규칙)
+        #      fragment 내 st.rerun()은 전체 페이지 rerun (페이지 전환 정상 동작)
+        @st.fragment
+        def _followup_fragment():
+            st.markdown("#### :material/forum: 추가 질문")
+            new_q = st.text_area(
                 "추가 질문",
                 placeholder="추가로 궁금한 점을 입력하세요...",
                 label_visibility="collapsed",
+                height=100,
+                key="followup_input",
             )
-            submitted = st.form_submit_button("질문하기", use_container_width=True)
+            if st.button(
+                "질문하기",
+                use_container_width=True,
+                type="primary",
+                key="followup_btn",
+            ):
+                if new_q and new_q.strip():
+                    _call_chat(new_q.strip(), use_cache=False)
 
-        if submitted and new_q:
-            # 자유 입력은 새 주제일 수 있으므로 search_id 없이 새 검색 수행
-            _call_chat(new_q, use_cache=False)
+        _followup_fragment()

@@ -10,7 +10,14 @@ import re as _re
 import streamlit as st
 
 from app.ui.db import _expand_para_range, fetch_docs_by_para_ids, fetch_parent_doc
-from app.ui.doc_helpers import _build_self_ids, _format_pdr_content, _get_doc_para_num
+from app.ui.doc_helpers import (
+    _build_pdr_label,
+    _build_self_ids,
+    _format_pdr_content,
+    _get_doc_para_num,
+    _get_parent_field,
+    _hierarchy_path,
+)
 from app.ui.doc_renderers import _render_para_chips
 from app.ui.text import _CONTEXT_PREFIX_RE, clean_text
 
@@ -129,7 +136,16 @@ def _render_para_expander(doc: dict, idx: int = 0) -> None:
     # [문맥:...] + **[문단 XX]** 접두어 제거 — badge에서 이미 문단 번호 표시
     content = _strip_context_prefix(raw_content, para_num)
 
-    label = title if title else f"문단 {para_num}"
+    # 제목 결정: title → content 첫 문장 → "문단 XX" 폴백
+    # Why: 경과규정(C5, C7A 등) 문서는 title이 비어있어 "문단 C5"로만 표시됨
+    if title:
+        label = title
+    elif content:
+        # content는 이미 [문맥:] + **[문단 XX]** 접두어가 제거된 상태
+        first_sent = content.split("\n")[0].strip()[:80]
+        label = f"[문단 {para_num}] {first_sent}" if first_sent else f"문단 {para_num}"
+    else:
+        label = f"문단 {para_num}"
     with st.expander(f":material/description: {label}", expanded=False):
         if para_num:
             st.markdown(
@@ -163,7 +179,14 @@ def _render_preview_captions(para_ids: list[str], para_index: dict[str, dict]) -
     for p in para_ids:
         doc = para_index.get(p)
         if doc:
-            titles.append(doc.get("title", f"문단 {p}"))
+            title = doc.get("title") or ""
+            if not title:
+                # title 없는 문단(경과규정 등): content 첫 줄에서 추출
+                raw = (doc.get("content") or doc.get("text", ""))
+                raw = _strip_context_prefix(raw, _get_doc_para_num(doc))
+                first_sent = raw.split("\n")[0].strip()[:80] if raw else ""
+                title = f"[문단 {p}] {first_sent}" if first_sent else f"문단 {p}"
+            titles.append(title)
     if not titles:
         return
     lines = titles[:_MAX_PREVIEW]
@@ -198,16 +221,21 @@ def _collect_expanded_ids(sections: list[dict]) -> list[str]:
 # ── 탭 1: 본문·BC ──────────────────────────────────────────────────────────
 
 
-def _render_main_bc_tab(data: dict) -> None:
+def _render_main_bc_tab(data: dict, topic_name: str = "") -> None:
     """본문 및 결론도출근거(BC) 탭을 렌더링합니다."""
     summary = data.get("summary", "")
     sections = data.get("sections", [])
 
-    _summary_box(summary)
     if not sections:
-        st.caption("등록된 본문/BC 데이터가 없습니다.")
+        fallback = (
+            f"기준서 본문 및 결론도출근거(BC) 중 '{topic_name}' 원칙을 직접 다루는 문단이 현재 등록되어 있지 않습니다."
+            if topic_name
+            else "등록된 본문/BC 데이터가 없습니다."
+        )
+        st.caption(fallback)
         return
 
+    _summary_box(summary)
     all_ids = _collect_expanded_ids(sections)
     para_index = _batch_fetch_paras(tuple(all_ids)) if all_ids else {}
 
@@ -271,15 +299,21 @@ def _render_main_bc_tab(data: dict) -> None:
 # ── 탭 2: 적용사례(IE) ─────────────────────────────────────────────────────
 
 
-def _render_ie_tab(data: dict) -> None:
+def _render_ie_tab(data: dict, topic_name: str = "") -> None:
     """적용사례(IE) 탭을 렌더링합니다."""
     summary = data.get("summary", "")
     cases = data.get("cases", [])
 
-    _summary_box(summary)
     if not cases:
-        if not summary:
-            st.caption("등록된 적용사례가 없습니다.")
+        # cases가 없으면 항상 fallback 메시지 표시
+        # Why: summary에 QNA 등 다른 탭 내용이 잘못 들어간 경우가 있어
+        #       summary를 대체 표시하면 혼란을 줌
+        fallback = (
+            f"기준서 부록의 적용사례(IE) 중 '{topic_name}' 원칙만을 단독으로 설명하기 위해 마련된 별도의 사례는 없습니다."
+            if topic_name
+            else "등록된 적용사례가 없습니다."
+        )
+        st.caption(fallback)
         return
 
     all_ie_ids: list[str] = []
@@ -306,42 +340,22 @@ def _render_ie_tab(data: dict) -> None:
                             _render_para_expander(doc, idx=100 + i)
 
 
-def _get_parent_field(parent: dict, field: str, default: str = "") -> str:
-    """parent 문서에서 필드를 조회합니다 (top-level → metadata 중첩 순서).
-
-    QNA/감리사례 parent 컬렉션은 title, hierarchy 등이 metadata 안에 중첩되어 있으므로
-    top-level에 없으면 metadata에서 찾습니다.
-    """
-    val = parent.get(field)
-    if val:
-        return val
-    meta = parent.get("metadata") or {}
-    return meta.get(field, default)
-
-
-def _hierarchy_path(hierarchy: str) -> str:
-    """hierarchy에서 마지막 세그먼트(제목)를 제거하고 경로만 반환합니다.
-
-    '질의회신 > 신속처리질의 > K-IFRS 제1115호 > 매출 시 지급한 지체상금의 회계처리'
-    → '질의회신 > 신속처리질의 > K-IFRS 제1115호'
-    """
-    parts = [p.strip() for p in hierarchy.split(">") if p.strip()]
-    return " > ".join(parts[:-1]) if len(parts) > 1 else hierarchy
-
-
 # ── 탭 3: 질의회신(QNA) ────────────────────────────────────────────────────
 
 
-def _render_qna_tab(data: dict) -> None:
+def _render_qna_tab(data: dict, topic_name: str = "") -> None:
     """질의회신(QNA) 탭을 렌더링합니다."""
     summary = data.get("summary", "")
     qna_ids = data.get("qna_ids", [])
     qna_descs: dict = data.get("qna_descs", {})
 
-    _summary_box(summary)
     if not qna_ids:
-        if not summary:
-            st.caption("등록된 질의회신이 없습니다.")
+        fallback = (
+            f"회계기준원·금융감독원 질의회신 중 '{topic_name}' 원칙만을 단독으로 다루는 회신은 현재 등록되어 있지 않습니다."
+            if topic_name
+            else "등록된 질의회신이 없습니다."
+        )
+        st.caption(fallback)
         return
 
     for i, qna_id in enumerate(qna_ids):
@@ -384,44 +398,19 @@ def _render_qna_tab(data: dict) -> None:
 # ── 탭 4: 감리지적사례 ─────────────────────────────────────────────────────
 
 
-def _build_pdr_label(doc_id: str, title: str, content: str) -> str:
-    """QNA/감리지적사례 expander 제목을 [ID] 설명 형태로 생성합니다.
-
-    DB title 상태에 따라 3가지 케이스:
-      A) title이 이미 [ID]를 포함 → "레퍼런스" 제거 후 그대로
-      B) title이 설명만 있음 (ID 미포함) → [doc_id] 접두어 추가
-      C) title이 doc_id와 동일하거나 빈값 → content 첫 줄에서 설명 추출
-    """
-    clean = _re.sub(r"^레퍼런스\s*", "", title).strip()
-
-    # A) 이미 [ID] 포함 → 그대로
-    if f"[{doc_id}]" in clean:
-        return clean
-
-    # C) title 없거나 doc_id와 동일 → content 첫 줄에서 추출
-    if not clean or clean == doc_id:
-        if content:
-            first_line = content.split("\n")[0].strip()
-            # "레퍼런스 [ID] 제목" 또는 "[ID] 제목" 또는 "ID 제목" 패턴
-            m = _re.match(
-                r"^(?:레퍼런스\s*)?\[?" + _re.escape(doc_id) + r"\]?\s*(.+)",
-                first_line,
-            )
-            if m:
-                return f"[{doc_id}] {m.group(1).strip()}"
-        return doc_id
-
-    # B) 설명은 있지만 [ID] 없음 → prepend
-    return f"[{doc_id}] {clean}"
-
-
-def _render_findings_tab(data: dict) -> None:
+def _render_findings_tab(data: dict, topic_name: str = "") -> None:
     """감리지적사례 탭을 렌더링합니다."""
+    summary = data.get("summary", "")
     finding_ids = data.get("finding_ids", [])
     finding_descs: dict = data.get("finding_descs", {})
 
     if not finding_ids:
-        st.caption("등록된 감리지적사례가 없습니다.")
+        fallback = (
+            f"금융감독원 감리지적사례 중 '{topic_name}' 원칙만을 단독으로 다루는 사례는 현재 등록되어 있지 않습니다."
+            if topic_name
+            else "등록된 감리지적사례가 없습니다."
+        )
+        st.caption(fallback)
         return
 
     for i, fid in enumerate(finding_ids):

@@ -8,10 +8,13 @@
 
 from app.ui.doc_helpers import (  # noqa: F401
     _apply_cluster_first_bonus,
+    _build_pdr_label,
     _build_self_ids,
     _convert_journal_entries,
     _format_pdr_content,
     _get_doc_para_num,
+    _get_parent_field,
+    _hierarchy_path,
     _ie_para_sort_key,
     _is_ie_doc,
     _normalize_case_group_title,

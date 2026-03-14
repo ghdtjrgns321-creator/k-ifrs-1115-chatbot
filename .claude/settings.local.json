@@ -24,7 +24,8 @@
       "WebFetch(domain:developers.openai.com)",
       "WebFetch(domain:openai.com)",
       "WebFetch(domain:pricepertoken.com)",
-      "WebFetch(domain:ai.google.dev)"
+      "WebFetch(domain:ai.google.dev)",
+      "Skill(playwright-cli)"
     ]
   }
 }

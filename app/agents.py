@@ -75,6 +75,27 @@ class AnalyzeResult(BaseModel):
         default="complex",
         description="simple: 단일 쟁점/조항 직접 인용 가능, complex: 다중 쟁점/Case 분기 필요",
     )
+    provided_info: list[str] = Field(
+        default_factory=list,
+        description="사용자 설명에서 이미 명시된 판단 요소. "
+        "예: ['가격결정권: 기업이 보유', '재고위험: 없음']. "
+        "is_situation=true일 때만 추출. 명시적 언급만, 추론 금지.",
+    )
+    needs_calculation: bool = Field(
+        default=False,
+        description="사용자가 구체적 숫자 계산 결과를 요청하면 true. "
+        "판단 원칙/개념/인식 시점을 묻는 질문이면 false. "
+        "핵심 구분: '계산해줘/구해줘/산정해주세요/얼마인가요' + 금액 3개 이상 = true, "
+        "'~하나요/뭐야/어떻게/원칙이 적용되나요' = false. "
+        "'산정하면 어떤 원칙이?' = false (원칙을 묻는 것), '산정해주세요' = true (결과를 요구)",
+    )
+    topic_hints: list[str] = Field(
+        default_factory=list,
+        description="질문의 거래 구조상 쟁점이 되는 K-IFRS 1115호 토픽. "
+        "반드시 [토픽 목록]에서만 선택, 최대 3개. "
+        "키워드가 직접 언급되지 않아도 거래 실질상 해당 토픽이 쟁점이면 포함. "
+        "예: 재판매 구조 → '본인 vs 대리인', 소프트웨어 라이선스 → '라이선싱'",
+    )
 
 
 class DocGrade(BaseModel):
@@ -158,6 +179,10 @@ class ClarifyDeps:
 
     matched_topics: list[dict] = field(default_factory=list)
     checklist_state: dict | None = None
+    provided_info: list[str] = field(default_factory=list)
+    # 사용자 원문 메시지 — critical_factors 매칭 범위 확대용
+    # Why: C1 — checked_items만으로는 사용자가 이미 답변한 factor를 놓치는 문제
+    messages: list[tuple[str, str]] = field(default_factory=list)
 
 
 # ── Agent 정의 ─────────────────────────────────────────────────────────────────
@@ -182,8 +207,10 @@ generate_agent = Agent(
     output_type=GenerateOutput,
     retries=2,
     system_prompt=GENERATE_SYSTEM,
-    # Gemini Flash thinking=high: 회계 추론 품질 1위 (score 0.81)
-    model_settings={"google_thinking_config": {"thinking_level": "high"}},
+    # Gemini Flash thinking=medium: A/B 테스트 결과 high 대비 일관성 대폭 향상
+    # Why: high에서 thinking이 과도하여 불필요한 분기 생성 → 꼬리질문 비결정성 유발
+    # 결과: 꼬리질문 일관성 60%→100%, 토픽 매칭 안정화, 품질 손실 없음
+    model_settings={"google_thinking_config": {"thinking_level": "medium"}},
 )
 
 clarify_agent = Agent(
@@ -191,8 +218,8 @@ clarify_agent = Agent(
     output_type=ClarifyOutput,
     retries=2,
     deps_type=ClarifyDeps,
-    # Gemini Flash thinking=high
-    model_settings={"google_thinking_config": {"thinking_level": "high"}},
+    # Gemini Flash thinking=medium (A/B 테스트 결과 high 대비 일관성 우수)
+    model_settings={"google_thinking_config": {"thinking_level": "medium"}},
 )
 
 # Why: gpt-4.1-mini 전용. selected_branches 불필요, validator 없음, non-reasoning 프롬프트.
@@ -234,7 +261,7 @@ text_agent = Agent(
 async def _validate_clarify(
     ctx: RunContext[ClarifyDeps], result: ClarifyOutput
 ) -> ClarifyOutput:
-    """빈 인용/빈 분기를 reject → ModelRetry로 LLM 재호출."""
+    """빈 인용/빈 분기를 reject + 양방향 분기 TYPE 2 단정 방지 → ModelRetry."""
     errors = []
     if not result.cited_paragraphs:
         errors.append(
@@ -244,9 +271,70 @@ async def _validate_clarify(
         errors.append(
             "selected_branches가 비어있습니다. [결론 가이드]에서 선택한 분기를 반드시 포함하세요."
         )
+
+    # 양방향 분기 TYPE 2 단정 방지:
+    # critical_factors가 있는 토픽에서 selected_branches가 1개(TYPE 2)인데
+    # checklist_state에 해당 factor 확인 이력이 없으면 reject
+    if len(result.selected_branches) == 1 and ctx.deps.matched_topics:
+        checked_text = ""
+        # 사용자 원문 메시지 포함 — 이미 답변한 factor를 놓치지 않도록
+        # Why: C1 — "재고위험도 저희가 부담"이라고 답했으나 checked_items에 없어 미확인 판정
+        for role, content in (ctx.deps.messages or []):
+            if role == "human":
+                checked_text += " " + content
+        if ctx.deps.checklist_state:
+            items = ctx.deps.checklist_state.get("checked_items", [])
+            for i in items:
+                if isinstance(i, dict):
+                    checked_text += (
+                        " " + i.get("question", "") + " " + i.get("answer", "")
+                    )
+                else:
+                    checked_text += " " + str(i)
+        # provided_info도 확인 이력으로 간주
+        provided = getattr(ctx.deps, "provided_info", []) or []
+        checked_text += " " + " ".join(provided)
+
+        for topic in ctx.deps.matched_topics:
+            factors = topic.get("critical_factors", [])
+            if not factors:
+                continue
+            # factor 키워드가 checked_text에 하나라도 포함되지 않으면 미확인
+            unconfirmed = [f for f in factors if not _factor_in_text(f, checked_text)]
+            if unconfirmed:
+                errors.append(
+                    f"TYPE 2(확정 결론)를 선택했지만 다음 핵심 판단 요소가 아직 확인되지 않았습니다: "
+                    f"{'; '.join(unconfirmed)}. TYPE 1(조건부 결론)으로 변경하세요."
+                )
+                break
+
+    # concluded 상태에서 follow_up 강제 클리어 (방어적 보강)
+    # Why: C2 — validator 단계에서도 concluded 후 follow_up 누수 차단
+    if ctx.deps.checklist_state and ctx.deps.checklist_state.get("concluded", False):
+        result.follow_up_questions = []
+
     if errors:
         raise ModelRetry("\n".join(errors))
     return result
+
+
+def _factor_in_text(factor: str, text: str) -> bool:
+    """critical_factor 문자열의 핵심 키워드가 text에 포함되는지 판단.
+
+    Why: factor는 "가격결정권 보유 여부 (문단 B37⑴)" 같은 형태.
+    괄호 앞의 핵심 키워드로 매칭한다.
+    """
+    # 괄호 이전 부분에서 핵심 키워드 추출
+    core = factor.split("(")[0].strip()
+    # "여부", "유무" 등 판단 접미사 제거 — 매칭 정확도 향상
+    # Why: C1 — "재고위험 여부"의 "여부"가 text에 없어 매칭 실패
+    _JUDGMENT_SUFFIXES = {"여부", "유무", "가능성", "해당"}
+    keywords = [w for w in core.split() if len(w) >= 2 and w not in _JUDGMENT_SUFFIXES]
+    # 키워드 중 절반 이상이 text에 있으면 확인된 것으로 간주
+    if not keywords:
+        return True
+    matched = sum(1 for kw in keywords if kw in text)
+    return matched >= max(1, len(keywords) // 2)
 
 
 # ── clarify_agent 동적 system prompt ───────────────────────────────────────────
@@ -268,9 +356,25 @@ async def _inject_clarify_system(ctx: RunContext[ClarifyDeps]) -> str:
         ]
         for topic in ctx.deps.matched_topics:
             guide_lines.append(topic["checklist_text"])
-            # 체크리스트 항목 수 카운트
             total_checklist_items += len(topic.get("checklist", []))
         parts.append("\n\n".join(guide_lines))
+
+        # 양방향 분기 안전장치 — critical_factors가 있는 토픽에서
+        # 핵심 판단 요소가 미확인이면 TYPE 2(확정 결론)를 금지
+        cf_lines: list[str] = []
+        for topic in ctx.deps.matched_topics:
+            factors = topic.get("critical_factors", [])
+            if factors:
+                cf_lines.append(f"  [{topic.get('topic_name', '')}]")
+                cf_lines.extend(f"  - {f}" for f in factors)
+        if cf_lines:
+            parts.append(
+                "\n\n[양방향 분기 안전장치]\n"
+                "이 토픽의 결론은 다음 핵심 판단 요소에 따라 갈립니다:\n"
+                + "\n".join(cf_lines)
+                + "\n위 항목 중 하나라도 사용자 설명에서 명시적으로 확인되지 않았다면 "
+                "반드시 TYPE 1(조건부 결론)을 사용하세요."
+            )
 
     # 멀티턴: 이미 확인된 항목 (Q&A 쌍 또는 레거시 문자열)
     checked_count = 0
@@ -293,10 +397,38 @@ async def _inject_clarify_system(ctx: RunContext[ClarifyDeps]) -> str:
                 "\n새로운 정보가 필요한 항목만 질문하세요."
             )
 
+    # provided_info: analyze가 추출한 "이미 명시된 판단 요소"
+    # Why: 충분 정보 질문에서 불필요 꼬리질문을 방지
+    if ctx.deps.provided_info:
+        info_lines = [f"- {info}" for info in ctx.deps.provided_info]
+        parts.append(
+            "\n\n[사용자 설명에서 이미 확인된 정보 — 다시 질문 금지]\n"
+            + "\n".join(info_lines)
+            + "\n위 정보는 사용자가 이미 명시적으로 제공했으므로 "
+            "이 항목에 대해 다시 질문하지 마세요."
+        )
+
+    # 이전 턴에서 이미 결론을 도출한 경우 → 결론 확인 모드
+    # Why: C2처럼 T2에서 "접근권 → 기간에 걸쳐 인식" 결론 후
+    # T3에서 불필요한 로열티/MG 질문을 생성하는 문제 방지
+    already_concluded = False
+    if ctx.deps.checklist_state:
+        already_concluded = ctx.deps.checklist_state.get("concluded", False)
+
+    if already_concluded:
+        parts.append(
+            "\n\n[⚠️ 결론 확인 모드]\n"
+            "이전 턴에서 이미 결론을 도출했습니다. 추가 확인 질문을 생성하지 마세요.\n"
+            "사용자의 새 답변을 반영하여 결론을 확인·보강하고, TYPE 2(확정 결론)로 마무리하세요.\n"
+            "follow_up_questions는 반드시 빈 배열([])로 설정하세요."
+        )
+
     # 남은 체크리스트 항목 수를 LLM에 알려주어 결론 전환 판단 지원
     remaining = max(0, total_checklist_items - checked_count)
     conclusion_hint = ""
-    if checked_count == 0:
+    if already_concluded:
+        conclusion_hint = " 결론 확인 모드: 추가 질문 없이 확정 결론만 제시하세요."
+    elif checked_count == 0:
         conclusion_hint = " 첫 턴입니다. 정보가 충분하면 결론을 내리세요. 부족하면 조건부 결론 제시 후 핵심 판단 요소를 확인하세요."
     elif remaining == 0:
         conclusion_hint = " 모든 항목 확인 완료. 결론을 내리세요."

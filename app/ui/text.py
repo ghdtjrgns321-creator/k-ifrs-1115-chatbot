@@ -183,11 +183,19 @@ def clean_text(text: str) -> str:
         r'<span style="color:#1f77b4;font-weight:600;">\1</span>',
         text,
     )
-    # 3.5) 문서 ID 강조 — [FSS-CASE-xxx], [QNA-xxx], [KICPA-CASE-xxx] 패턴
-    # AI 답변에서 사례·질의회신 인용 시 사용자가 왼쪽 패널과 매칭할 수 있도록 강조
+    # 3.5) 문서 ID 강조 — QNA-xxx, FSS-CASE-xxx, KICPA-CASE-xxx, EDU-xxx 패턴
+    # AI 답변에서 사례·질의회신·교육자료 인용 시 사용자가 왼쪽 패널과 매칭할 수 있도록 강조
+    # 대괄호로 감싼 패턴: [QNA-xxx] → [<span>QNA-xxx</span>]
     text = re.sub(
-        r"\[((?:FSS-CASE|KICPA-CASE|QNA)-[\w-]+)\]",
+        r"\[((?:FSS-CASE|KICPA-CASE|QNA|EDU)-[\w-]+)\]",
         r'[<span style="color:#1f77b4;font-weight:600;">\1</span>]',
+        text,
+    )
+    # bare ID 패턴: 대괄호 없이 나오는 QNA-xxx, EDU-KASB-xxx 등도 강조
+    # (?<![\w>-]) : 이미 span 처리된 것(>) 또는 다른 단어 일부인 것 제외
+    text = re.sub(
+        r"(?<![\w>])((?:FSS-CASE|KICPA-CASE|QNA|EDU)-[\w-]+)",
+        r'<span style="color:#1f77b4;font-weight:600;">\1</span>',
         text,
     )
     # 3.6) 적용사례 참조 강조 — "사례11", "사례 1A", "사례 28B" 등
@@ -291,8 +299,18 @@ def _ensure_paragraph_breaks(text: str) -> str:
 
     마크다운에서 단일 줄바꿈은 공백으로 처리되어 단락이 분리되지 않습니다.
     이미 이중 줄바꿈인 곳은 건드리지 않습니다.
+
+    마크다운 테이블 행(|로 시작하는 줄)은 단일 \n이어야 렌더링되므로 보호합니다.
     """
-    return re.sub(r"(?<!\n)\n(?!\n)", "\n\n", text)
+    # 테이블 행 사이의 \n을 보호 마커로 치환 → 전체 \n→\n\n 변환 → 마커 복원
+    # 테이블 행: | 로 시작하는 줄 (구분선 |---|---| 포함)
+    text = re.sub(
+        r"(\|[^\n]*)\n(?=\s*\|)",
+        lambda m: m.group(1) + "\x00",
+        text,
+    )
+    text = re.sub(r"(?<!\n)\n(?!\n)", "\n\n", text)
+    return text.replace("\x00", "\n")
 
 
 def _format_qna(text: str) -> str:

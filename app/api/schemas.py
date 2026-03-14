@@ -48,6 +48,8 @@ class DocResult(BaseModel):
     # QNA/감리사례 PDR 렌더링용 — 부모 문서 ID와 IE 사례 그룹 제목
     parent_id: str = ""
     case_group_title: str = ""
+    # pinpoint(큐레이션) 문서 식별용 — evidence.py에서 LLM 미인용 시에도 표시
+    chunk_type: str = ""
 
 
 class SearchResponse(BaseModel):

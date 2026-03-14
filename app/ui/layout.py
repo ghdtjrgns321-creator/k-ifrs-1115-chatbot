@@ -120,6 +120,12 @@ _CUSTOM_CSS = """
         font-size: 0.82em; color: #64748B; margin-top: 0.5rem;
     }
 
+    /* rerun 중 stale 위젯 즉시 숨김 — 페이지 전환 깜빡임 방지
+       Streamlit은 rerun 시 개별 stElementContainer에 data-stale="true" 설정 */
+    .element-container[data-stale="true"] {
+        display: none !important;
+    }
+
     /* 추가 질문 폼 — 질문하기 버튼 네이비 배경 */
     [data-testid="stFormSubmitButton"] button {
         background-color: #1E293B !important;
@@ -190,8 +196,8 @@ def _render_sidebar() -> None:
             "- 한국회계기준원 교육자료\n"
             "- 금융감독원 감리지적사례\n\n"
             "**주의**\n\n"
-            "전문가적 판단이 개입되어야 하는 "
-            "복잡한 사안에 대해서는 확정적 **결론**을 내리지 못할 수 있습니다. "
+            "전문가적 판단이 개입되어야 하는 복잡한 사안에 대해서는 "
+            "확정적 **결론**을 내리지 못할 수 있습니다.\n\n"
             "본 답변은 실무 검토를 위한 **참고 목적**으로만 활용해 주세요."
         )
 

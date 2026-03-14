@@ -6,9 +6,12 @@
 #
 # 흐름:
 #   analyze → retrieve → rerank → generate → format
+import asyncio
 import logging
 import time
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Callable
+
+import httpx
 
 from app.api.schemas import SSEEvent
 from app.nodes.analyze import analyze_query
@@ -21,6 +24,41 @@ logger = logging.getLogger(__name__)
 
 # 범위 밖 질문 거절 메시지
 _REJECT_MSG = "죄송합니다. 저는 K-IFRS 1115호(수익 인식)와 관련된 회계 및 감사 질문에만 답변할 수 있습니다."
+
+# API 호출 재시도 대상 예외 — 네트워크 일시 장애만 재시도
+_RETRYABLE_EXCEPTIONS = (
+    httpx.TimeoutException,
+    httpx.HTTPStatusError,
+    ConnectionError,
+)
+
+
+async def _retry_node(
+    coro_fn: Callable[..., dict],
+    state: dict,
+    *,
+    max_retries: int = 2,
+) -> dict:
+    """LLM API 호출 노드에 지수 백오프 재시도를 적용합니다.
+
+    Why: PydanticAI의 retries=2는 output validation 전용이라
+    네트워크 timeout/HTTP 오류는 별도 래퍼가 필요함.
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            return await coro_fn(state)
+        except _RETRYABLE_EXCEPTIONS as exc:
+            if attempt == max_retries:
+                raise
+            wait = 2**attempt
+            logger.warning(
+                "retry %d/%d after %s (wait %.0fs)",
+                attempt + 1,
+                max_retries,
+                type(exc).__name__,
+                wait,
+            )
+            await asyncio.sleep(wait)
 
 
 async def run_rag_pipeline(state: dict) -> AsyncGenerator[SSEEvent, None]:
@@ -40,7 +78,7 @@ async def run_rag_pipeline(state: dict) -> AsyncGenerator[SSEEvent, None]:
             message="답변을 생성하고 있어요... (시간이 조금 소요될 수 있습니다)",
         )
         t0 = time.perf_counter()
-        state.update(await generate_answer(state))
+        state.update(await _retry_node(generate_answer, state))
         logger.info("generate(fast-path): %.1fs", time.perf_counter() - t0)
         logger.info("total: %.1fs", time.perf_counter() - pipeline_start)
         yield _done_event(state)
@@ -89,7 +127,7 @@ async def run_rag_pipeline(state: dict) -> AsyncGenerator[SSEEvent, None]:
         message="답변을 생성하고 있어요... (시간이 조금 소요될 수 있습니다)",
     )
     t0 = time.perf_counter()
-    state.update(await generate_answer(state))
+    state.update(await _retry_node(generate_answer, state))
     logger.info("generate: %.1fs", time.perf_counter() - t0)
 
     # ── 5. Format — clarify 경로에서는 스킵 (감리사례 넛지 불필요) ──────────────

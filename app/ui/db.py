@@ -108,6 +108,8 @@ def _expand_para_range(raw_num: str) -> list[str]:
     try:
         # en-dash(–), em-dash(—), minus(−)를 표준 하이픈(-)으로 정규화
         normalized = re.sub(r"[–—−]", "-", raw_num.strip())
+        # 원 괄호 숫자 제거: "84⑵" → "84" (⑴~⑼, U+2474~U+247C)
+        normalized = re.sub(r"[\u2474-\u247C]", "", normalized)
         # 하위 문단 접미사 제거: "B19(1)" → "B19"
         # DB는 하위 문단을 별도 문서로 저장하지 않으므로 기본 문단으로 조회
         cleaned = re.sub(r"\([0-9가-힣]+\)$", "", normalized)
@@ -182,19 +184,29 @@ def fetch_parent_doc(parent_id: str) -> dict | None:
     try:
         db = _get_mongo_db()
         # QNA/감리사례/교육자료 → 별도 parent 컬렉션에서 _id로 조회
-        if parent_id.startswith("QNA-"):
+        from app.ui.constants import DOC_PREFIX_EDU, DOC_PREFIX_QNA, DOC_PREFIXES_FINDING
+        if parent_id.startswith(DOC_PREFIX_QNA):
             doc = db[_QNA_PARENT_COLL].find_one({"_id": parent_id}, {"embedding": 0})
-        elif parent_id.startswith(("FSS-", "KICPA-")):
+        elif parent_id.startswith(DOC_PREFIXES_FINDING):
             doc = db[_FINDINGS_PARENT_COLL].find_one(
                 {"_id": parent_id}, {"embedding": 0}
             )
-        elif parent_id.startswith("EDU-"):
+        elif parent_id.startswith(DOC_PREFIX_EDU):
             doc = db[_KAI_PARENT_COLL].find_one({"_id": parent_id}, {"embedding": 0})
         else:
             # 본문 등 기존 방식 — 메인 컬렉션에서 chunk_id로 조회
             coll = _get_mongo_collection()
             doc = coll.find_one({"chunk_id": parent_id}, {"embedding": 0})
-        return dict(doc) if doc else None
+        if not doc:
+            return None
+        result = dict(doc)
+        # parent 컬렉션은 metadata를 중첩 객체로 저장 (예: metadata.title)
+        # 하위 코드에서 root 레벨로 접근하므로 여기서 펼쳐줌
+        if "metadata" in result and isinstance(result["metadata"], dict):
+            for k, v in result["metadata"].items():
+                if k not in result:  # _id, content 등 기존 키 보존
+                    result[k] = v
+        return result
     except Exception:
         return None
 
@@ -243,20 +255,49 @@ def fetch_docs_by_para_ids(para_ids: tuple) -> list[dict]:
         return []
 
 
-@st.cache_data(ttl=300, show_spinner=False)
 def fetch_ie_case_docs(case_titles: tuple) -> list[dict]:
     """case_group_title 목록으로 IE 적용사례 문서를 일괄 조회합니다.
 
     evidence.py에서 사례별 그룹 렌더링에 사용됩니다.
-    한 번의 DB 쿼리로 모든 사례 문서를 가져와 네트워크 왕복을 최소화합니다.
+
+    Why: DB의 case_group_title은 "사례 5: 계약변경―재화" 형태이지만,
+         AI 답변에서 추출하는 것은 "사례 5"뿐.
+         MongoDB Atlas에서 한글 $regex가 동작하지 않으므로,
+         전체 title 목록을 가져와 Python에서 prefix 매칭 후 $in으로 조회.
     """
     if not case_titles:
         return []
     try:
         coll = _get_mongo_collection()
-        query = {"case_group_title": {"$in": list(case_titles)}}
-        docs = list(coll.find(query, {"embedding": 0}))
+        # 1) 전체 case_group_title 목록 (캐시됨)
+        all_titles = _get_all_ie_case_titles()
+        # 2) "사례 5" → "사례 5: ..." prefix 매칭
+        matched_titles = []
+        for short in case_titles:
+            for full in all_titles:
+                if full == short or full.startswith(f"{short}:") or full.startswith(f"{short}："):
+                    matched_titles.append(full)
+        if not matched_titles:
+            return []
+        # 3) $or + 정확 매칭으로 조회
+        # Why: MongoDB Atlas에서 한글 포함 $in이 동작하지 않는 경우가 있어 $or로 우회
+        or_clauses = [{"case_group_title": t} for t in matched_titles]
+        docs = list(coll.find(
+            {"$or": or_clauses},
+            {"embedding": 0},
+        ))
         return [dict(d) for d in docs]
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _get_all_ie_case_titles() -> list[str]:
+    """IE 적용사례의 case_group_title 전체 목록을 캐시합니다."""
+    try:
+        coll = _get_mongo_collection()
+        titles = coll.distinct("case_group_title", {"category": "적용사례IE"})
+        return [t for t in titles if t]
     except Exception:
         return []
 

@@ -1,7 +1,7 @@
 # 의사결정 기록 (Architecture Decision Records)
 
 > 과거 결정의 맥락과 근거를 빠르게 참조하기 위한 문서.
-> 최종 업데이트: 2026-03-13
+> 최종 업데이트: 2026-03-14
 
 ---
 
@@ -30,12 +30,16 @@
 **근거**:
 - Gemini Flash(thinking=high): 회계 추론 품질 1위, 복잡한 판단 질문에 최적
 - gpt-4.1-mini: 산술 정확도 100%, non-reasoning이라 계산에 집중
-- 3가지 AND 조건으로 회계 판단이 calc로 빠지는 오류 방지:
-  1. `matched_topics`에 `calculation_formula` 존재
-  2. "계산해줘", "구해줘" 같은 직접 명령
-  3. 금액 3개 이상 (2개는 맥락 설명일 수 있음)
 
-**참조**: `app/nodes/generate.py:_needs_calculation()`
+**라우팅 방식 변경 이력**:
+- v1 (제거됨): regex 3조건 AND (`_CALC_COMMAND` + `_AMOUNT_PATTERN` + `has_formula`)
+  - 문제: 토픽 매칭 비결정성 → B1/B2에서 1/3만 calc 진입
+- v2 (현재): `AnalyzeResult.needs_calculation: bool` — analyze_agent(gpt-4.1-mini)가 LLM으로 판단
+  - 14개 테스트케이스 × 3회 = 42/42 정확도 100%, 일관성 100%
+  - regex 전체 제거 (`_needs_calculation()`, `_CALC_COMMAND`, `_AMOUNT_PATTERN`)
+  - 추가 비용 0 (이미 실행 중인 analyze_agent에 필드 1개 추가)
+
+**참조**: `app/agents.py:AnalyzeResult`, `app/nodes/generate.py`
 
 ---
 
@@ -135,7 +139,7 @@
 - Child 청크(Q/A/보충 각각)로 분할 → 검색 정확도 향상
 - 검색 후 `parent_id`로 부모 원문 전체 조회 → LLM에 풍부한 맥락 제공
 - 3개 parent 컬렉션으로 분리: qna-parents, findings-parents, kai-parents
-- ID 접두사 라우팅: `QNA-` → qna, `FSS-`/`KICPA-` → findings, `KAI-` → kai
+- ID 접두사 라우팅: `QNA-` → qna, `FSS-`/`KICPA-` → findings, `EDU-` → kai
 
 **주의**: parent 컬렉션은 `metadata` dict 안에 `title`, `hierarchy` 중첩 저장 (스키마 불일치 주의)
 
@@ -172,7 +176,41 @@
 
 **교훈**: non-reasoning 모델에 system prompt와 user msg에 동일 지시를 중복 주입하면 핵심 태스크 정확도 하락. 포맷 지시는 system prompt 1회만.
 
-**참조**: `app/nodes/generate.py`, `docs/debugging.md #14`
+**참조**: `app/nodes/generate.py`, `docs/debugging.md #13`
+
+---
+
+## ADR-17. 멀티턴 결론 추적 + 양방향 분기 안전장치
+
+**결정**: `checklist_state`에 `concluded` 플래그 추가, `critical_factors` 기반 TYPE 2 단정 방지
+
+**맥락**: 품질 테스트에서 2가지 Partial 패턴 식별
+- C2: T2에서 결론 도달 후 T3에서 불필요 추가 질문(로열티/MG) 생성
+- C1: 본인/대리인 양방향 분기에서 핵심 요소 미확인인데 TYPE 2 단정
+
+**근거**:
+- `concluded` 플래그: `is_conclusion=True` 시 세션에 저장 → 후속 턴에서 [결론 확인 모드] 주입
+  → "추가 질문 없이 TYPE 2 확정 결론만 제시" 강제
+- `7_critical_factors`: 양방향 분기 토픽(본인/대리인, 라이선싱 등)에 핵심 판단 요소 명시
+  → `_validate_clarify()`에서 미확인 factor + TYPE 2 → ModelRetry
+  → `_inject_clarify_system()`에서 [양방향 분기 안전장치] 프롬프트 주입
+
+**참조**: `app/services/chat_service.py`, `app/agents.py`, `app/domain/decision_trees.py`
+
+---
+
+## ADR-18. ANALYZE_PROMPT 범위 밖 키워드 가드
+
+**결정**: 타 기준서 전용 개념(증분차입이자율, 사용권자산 등)을 ANALYZE_PROMPT에 명시적 OUT 열거
+
+**맥락**: C3 테스트에서 "증분차입이자율"(1116호)이 1115호 "금융요소"와 혼동되어 범위 밖 판정 실패 (1/3)
+
+**근거**:
+- 1116호(리스), 1109호(금융상품), 1037호(충당부채)의 전용 용어를 명시적 negative list로 관리
+- 1115호와 교차하는 개념(금융요소, 유의적 금융요소)은 "IN" 유지
+- LLM이 유사 용어를 구분하지 못하는 문제를 프롬프트 레벨에서 방어
+
+**참조**: `app/prompts.py:ANALYZE_PROMPT`
 
 ---
 
@@ -235,3 +273,227 @@
 - 간격 제어는 네이티브 `st.container(gap="small")` 사용
 
 **참조**: `docs/debugging.md #1`, `docs/STREAMLIT.md`
+
+---
+
+## ADR-15. 외부 테이블 문단: 전처리 크롤링 + UI 테이블 행 보호
+
+**결정**: 외부 `.htm` 테이블을 전처리 단계에서 크롤링·주입하고, UI에서 마크다운 테이블 행을 보호
+
+**맥락**: IE 적용사례 ~29개 문단에 `data-file-name`으로 참조된 외부 테이블/분개가 깨져 표시됨
+
+**근거**:
+- `11-fix-external-tables.py`: 외부 .htm 크롤링 → `paraContent`에 `<table>` 주입 → 마크다운 테이블 변환 → MongoDB text 필드 갱신
+- `_ensure_paragraph_breaks()`: 테이블 행(`|`로 시작) 사이 `\n`을 보호 마커로 치환하여 `\n→\n\n` 변환에서 제외
+- `<th>` 없는 테이블: 빈 헤더 행을 삽입하여 첫 데이터 행이 볼드되지 않도록 처리
+
+**교훈**: 외부 파일 참조는 전처리에서 해결. UI 정규식으로 깨진 데이터 복원은 불가.
+
+**참조**: `app/preprocessing/11-fix-external-tables.py`, `app/ui/text.py`, `docs/debugging.md #21`
+
+---
+
+## ADR-16. topics.json 단일 파이프라인 (parse + split 통합)
+
+**결정**: `10-parse-curation.py` 한 번 실행으로 24개 합산 토픽 파싱 + 7개 개별 토픽 분할까지 완료 → 최종 29개
+
+**맥락**: 이전 2단계 파이프라인(`10-parse-curation.py` → `_add_topics.py`)에서 후속 스크립트 실행 누락이 반복 발생하여 UI가 깨지는 사고 재발
+
+**근거**:
+- `_split_merged_topics()` 함수를 `10-parse-curation.py`의 `main()` 끝에 통합
+- 분할 데이터는 `_add_topics_data.py`(SPLIT_TOPICS, MERGED_KEYS)로 분리하여 importable 모듈로 관리
+- `_add_topics.py`는 DEPRECATED — 별도 실행 불필요
+- UI(`constants.py` HOME_TOPICS), decision_trees.py, summary-embeddings.json 모두 개별 토픽명 사용
+
+**교훈**: 2단계 파이프라인은 반드시 누락 사고가 발생한다. 단일 스크립트로 통합하여 원천 차단.
+
+**참조**: `app/preprocessing/10-parse-curation.py`, `app/preprocessing/_add_topics_data.py`
+
+---
+
+## ADR-19. topic_hints — LLM 기반 의미적 토픽 매칭 보완
+
+**결정**: `AnalyzeResult`에 `topic_hints: list[str]` 필드를 추가하여, 키워드 매칭 실패 시에도 거래 실질 기반으로 토픽을 매칭
+
+**맥락**: "A→B→C 재판매, A의 매출액은?" 같은 질문에서 "본인 vs 대리인" 토픽이 의미적으로 해당하지만, `trigger_keywords`에 "재판매"가 없어서 토픽 매칭 실패 → 핀포인트 문서(B34A, B37, 사례 47, QNA, 감리사례) 미검색
+
+**근거**:
+- 이미 호출 중인 analyze_agent의 structured output에 필드 1개 추가 → 추가 API 호출 0회, 토큰 증가 ~150개
+- ANALYZE_PROMPT에 31개 토픽 목록을 명시하여 LLM이 허용된 토픽만 선택하도록 제한
+- `tree_matcher.py`에서 `topic_hints` 가산점 5.0 (키워드 완전일치 3.0보다 높음) → 키워드 매칭 0이어도 hints에 포함되면 candidates 진입
+- 하위 호환성 유지: `topic_hints`는 `default_factory=list`, `match_topics`의 파라미터는 `None` 기본값
+
+**수정 파일**: `app/agents.py`, `app/prompts.py`, `app/domain/tree_matcher.py`, `app/nodes/analyze.py`
+
+**참조**: `app/agents.py:AnalyzeResult.topic_hints`, `app/domain/tree_matcher.py:match_topics()`
+
+---
+
+## ADR-20. 감리사례 선별 보강 — 4_precedents 누락 5건 추가
+
+**결정**: topics.json에 큐레이션된 감리사례 중 `4_precedents`에도 `5_red_flags`에도 없는 진짜 누락 5건을 `4_precedents`에 추가
+
+**맥락**: 핀포인트 fetch는 `4_precedents`와 `5_red_flags` 텍스트에서 문서 ID를 파싱하여 MongoDB 원문을 직접 조회하는데, 감리사례가 어느 쪽에도 없으면 리트리버가 놓칠 때 "위험 경고" 기능이 작동하지 않음
+
+**근거**:
+- 감리사례는 **규제 리스크 문서** → 반드시 핀포인트 경로로 참조되어야 함
+- QNA/IE는 리트리버 + `_format_topic_knowledge()` desc 요약으로 커버 가능하지만, 감리사례는 질문과 의미적 유사도가 낮아 리트리버가 놓칠 확률이 높음
+- 나머지 18건은 이미 `5_red_flags`에서 핀포인트 파싱 대상이므로 추가 불필요
+
+**추가 대상**:
+| 감리사례 ID | 토픽 | 배치 분기 |
+|------------|------|----------|
+| FSS-CASE-2024-2505-02 | 계약의 식별 | [분기 2] 요건 미충족 |
+| FSS-CASE-2025-2512-01 | 계약의 식별 | [분기 2] 요건 미충족 |
+| FSS-CASE-2024-2505-03 | 본인 vs 대리인 + 반품권 | 각 토픽 해당 분기 |
+| FSS-CASE-2024-2505-04 | 변동대가의 배분 | [분기 2] 비례 배분 |
+| KICPA-CASE-2025-07 | 진행률 측정 | [분기 1] 일반 투입법 |
+
+**참조 표기 규칙**: `4_precedents`는 `[대괄호]` 표기, `5_red_flags`는 `[대괄호]` 표기. retriever.py `_parse_doc_ids_from_text()`는 양쪽 모두 파싱.
+
+**참조**: `app/domain/decision_trees.py`, `app/retriever.py:fetch_pinpoint_docs()`
+
+---
+
+## ADR-21. IE 적용사례 pinpoint: calc 경로에서만 제외 + 사례 단위 병합
+
+**결정**: IE pinpoint 필터를 무조건 제외 → `needs_calculation=True`일 때만 제외로 변경. IE 문단을 사례 단위로 병합.
+
+**맥락**: generate.py에서 IE pinpoint을 무조건 제외하여, 일반/상황 질문에서 IE 적용사례 원문이 LLM에 도달하지 못함. 또한 IE 사례 1건이 여러 문단(IE48, IE48A, IE48B...)으로 분리되어 `GENERATE_DOC_LIMIT` 슬롯을 과다 점유.
+
+**근거**:
+- calc 경로: IE 원문이 슬롯을 차지하면 산술 문맥이 밀려남 → 제외 유지
+- 일반/상황 질문: IE 사례가 핵심 근거 → LLM에 전달 필수
+- 사례 병합: `_fetch_ie_case_chunks()`에서 같은 사례의 문단들을 하나의 doc으로 합침 (47개 문단 → 8개 사례)
+- 병합 doc의 chunk_id: `1115-IE-case-{사례번호}`, `_merged_chunk_ids`에 원본 ID 보존
+
+**참조**: `app/nodes/generate.py:95-109`, `app/retriever.py:_fetch_ie_case_chunks()`
+
+---
+
+## ADR-22. 핀포인트 파싱 3중 Gap 수정
+
+**결정**: `_parse_doc_ids_from_text()`와 `fetch_pinpoint_docs()`의 3가지 누락 문제 수정
+
+**맥락**: decision_trees.py 섹션별로 참조 형식이 다르지만, 파서가 section 4/5의 `[대괄호]`만 처리하여 section 2/7의 참조가 누락
+
+**근거**:
+
+| Gap | 원인 | 수정 |
+|-----|------|------|
+| 소괄호 미파싱 | section 2 checklist는 `(QNA-xxx)` 소괄호 사용 | 대괄호 + 소괄호 양쪽 파싱 추가 |
+| 축약 ID 불일치 | section 2에서 `FSS-2022-...` 사용, DB는 `FSS-CASE-2022-...` | `FSS-`→`FSS-CASE-`, `KICPA-`→`KICPA-CASE-` 자동 정규화 |
+| critical_factors 미수집 | `fetch_pinpoint_docs()`가 section 7 텍스트 미수집 | `checklist`(리스트) + `critical_factors` 수집 추가 |
+
+**검증**: "본인 vs 대리인" 토픽에서 `(FSS-2022-2311-03)` → `FSS-CASE-2022-2311-03` 정상 파싱, `(문단 B37⑴)` → `B37` 파싱 확인
+
+**참조**: `app/retriever.py:_parse_doc_ids_from_text()`, `app/retriever.py:fetch_pinpoint_docs()`
+
+---
+
+## ADR-23. 토픽 임베딩 기반 의미적 매칭 (tree_matcher 3중 매칭)
+
+**결정**: tree_matcher에 토픽 임베딩 코사인 유사도를 3번째 스코어링 신호로 추가
+
+**맥락**: ADR-19의 `topic_hints`(LLM 기반)만으로는 일상 언어 질문에서 토픽 매칭 불안정. T1 "A→B→C 재판매" 질문을 3회 실행 시 "본인 vs 대리인"이 한 번도 hints에 포함되지 않음.
+
+**근거**:
+- **3중 매칭 구조**: keyword 매칭 + topic_hints(LLM) + 임베딩 유사도
+- 각 토픽의 `judgment_goal + trigger_keywords + checklist + summary`를 사전 임베딩 (passage 모델, 4096차원)
+- 쿼리 시점에 `embed_query_sync()` 1회 호출 (~100ms) → 31개 토픽과 코사인 유사도 계산
+- 임베딩 텍스트에 trigger_keywords 포함 → 추상적 goal만 쓸 때 15위였던 "본인 vs 대리인"이 1위로 상승
+- `_EMBED_THRESHOLD=0.28`, `_EMBED_WEIGHT=10.0` — Upstage 절대 유사도가 0.29~0.47 범위로 낮으므로 보수적 임계값
+
+**성능 테스트 (8개 질문)**:
+- 정답 토픽 1위: 5/8 (62%)
+- 정답 토픽 top 3: 7/8 (87%)
+- keyword + hints + 임베딩 합산 시 T1 "본인 vs 대리인" top 3 진입 확인
+
+**전처리**: `app/preprocessing/13-topic-embed.py` → `data/topic-curation/topic-embeddings.json`
+
+**참조**: `app/domain/tree_matcher.py`, `app/domain/summary_matcher.py:cosine_similarity()`
+
+---
+
+## ADR-24. pinpoint 미인용 문서를 "참고하면 좋은 추가 문서"로 표시
+
+**결정**: pinpoint(큐레이션) 미인용 문서를 각 섹션의 "참고하면 좋은 추가 문서" 더보기에 배치
+
+**맥락**: pinpoint으로 fetch된 QNA/감리/IE(10~15건)가 LLM context에는 주입되지만, AI가 인용하지 않으면 UI에서 완전히 사라짐
+
+**근거**:
+- `DocResult`에 `chunk_type` 필드 추가 → SSE → Streamlit까지 전달
+- `_prepare_ai_answer_docs()`에서 pinpoint 미인용 문서를 `_supp_by_group`에 추가
+- pinpoint(score=1.0)이 retriever 문서보다 우선 정렬, 소스별 최대 5건
+- 메인 docs 리스트에 직접 추가 시 DuplicateElementKey + 그룹 혼선 → 기존 "더보기" 경로 활용
+
+**표시 계층**:
+1. AI 인용 문서 → 메인 표시
+2. pinpoint 미인용 + retriever 미인용 → "📂 참고하면 좋은 추가 문서" (pinpoint 우선)
+
+**참조**: `app/api/schemas.py:DocResult`, `app/ui/evidence.py`, `docs/debugging.md #35, #36`
+
+---
+
+## ADR-25. source 문자열 + ID 접두어 중앙화 + 데이터 파이프라인 교차 검증
+
+**결정**: source 문자열과 document ID 접두어를 `constants.py`에 상수로 중앙화. 데이터 파이프라인에 교차 검증 함수 추가.
+
+**맥락**: `"본문"`, `"적용지침B"`, `"질의회신"` 등의 source 문자열이 10+파일에 하드코딩. `"QNA-"`, `"FSS-"` 등의 ID 접두어도 retriever, db, evidence에 분산.
+
+**근거**:
+- source 문자열 한 곳 변경 시 나머지가 미변경되어 ACCORDION_GROUPS 그룹핑 실패
+- `SRC_BODY`, `SRC_IE`, `DOC_PREFIX_QNA` 등 상수를 `constants.py`에 정의
+- 주요 소비자(evidence.py, grouping.py, doc_helpers.py, retriever.py, db.py)에서 import 사용
+- summary-embeddings.json, topic-embeddings.json에 orphaned 데이터 4+2건 발견
+- `verify_data_consistency()` 함수로 topics.json ↔ 임베딩 파일 간 ID 교차 검증
+
+**Trade-off**: 전처리 스크립트, 테스트 파일에는 아직 하드코딩 잔류 (자주 변경되지 않는 파일이라 우선순위 낮음)
+
+**참조**: `app/ui/constants.py`, `app/preprocessing/10-parse-curation.py:verify_data_consistency()`, `docs/debugging.md #40`
+
+---
+
+## ADR-26. AI 답변 좌측 패널 — IE/QNA/감리 표시 아키텍처
+
+**결정**: AI 답변 좌측 근거 패널에 IE 사례, QNA 질의회신, 감리사례를 3계층으로 표시
+
+**맥락**: 기존에는 AI 인용 본문/적용지침만 표시. pinpoint으로 fetch된 QNA/감리/IE(10~40건)가 LLM context에 주입되었으나 UI에서 완전히 보이지 않음.
+
+**구현**:
+1. `DocResult`에 `chunk_type` 필드 추가 → SSE로 "pinpoint" 식별 전달
+2. IE pinpoint의 source를 "적용사례IE"로 설정 (ACCORDION_GROUPS 매칭)
+3. `_prepare_ai_answer_docs()`: pinpoint 미인용 문서를 `_supp_by_group`에 추가
+4. 그룹 0건이어도 더보기만 있으면 렌더링
+5. `fetch_ie_case_docs`: MongoDB Atlas 한글 $regex 우회 (Python prefix + $or)
+6. AI 인용 IE 사례: 📌 볼드 + 자동 펼침 + desc 표시
+
+**표시 계층**:
+- ① AI 인용 → 메인 (볼드, 펼침)
+- ② pinpoint 미인용 + retriever → "참고하면 좋은 추가 문서" 더보기
+
+**참조**: `docs/debugging.md #41`
+
+---
+
+## ADR-26. Gemini thinking_level: high → medium 전환
+
+**결정**: generate_agent, clarify_agent의 `thinking_level`을 `high`에서 `medium`으로 변경
+
+**맥락**: 26개 품질 테스트(×3회=78회) 결과 Pass 21/Partial 5/Fail 0. Partial 5건의 근본 원인이 Gemini thinking=high의 과도한 reasoning path 비결정성이었음.
+
+**A/B 테스트 결과** (Partial 5건 × 5회):
+
+| 지표 | high (3회) | medium (5회) |
+|------|-----------|-------------|
+| 꼬리질문 일관성 | 60% | **100%** |
+| 토픽 매칭 안정화 | 40% | **80%+** |
+| 품질 손실 | — | **없음** |
+| 에러 | 1건 생성오류 | 1건 타임아웃 |
+
+**핵심 발견**:
+- thinking=high에서 과도한 추론이 오히려 불필요한 분기를 생성 → 같은 질문에 즉답/꼬리질문 갈림
+- SECTION-19: high에서 2/3 불필요 꼬리질문 생성 vs medium 5/5 정확한 즉답
+- TEST-0: high에서 2/3 통제권 미확인 즉답 vs medium 5/5 꼬리질문 안정화
+
+**변경 파일**: `agents.py` (generate_agent, clarify_agent model_settings)

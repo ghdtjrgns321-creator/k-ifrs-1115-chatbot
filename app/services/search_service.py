@@ -95,4 +95,5 @@ def _to_doc_result(doc: dict) -> DocResult:
         score=doc.get("rerank_score", 0.0),
         parent_id=doc.get("parent_id") or "",
         case_group_title=doc.get("case_group_title") or "",
+        chunk_type=doc.get("chunk_type") or "",
     )

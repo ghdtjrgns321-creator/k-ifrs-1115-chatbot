@@ -50,6 +50,9 @@ def _build_initial_state(
         "search_keywords": [],
         "matched_topics": [],
         "checklist_state": checklist_state,
+        # needs_calculation: 첫 턴에서 저장한 값 복원 (fast-path에서 리셋 방지)
+        # Why: B1/B2 — fast-path 후속 턴에서 analyze 스킵 시 False로 리셋되는 문제 해결
+        "needs_calculation": (checklist_state or {}).get("needs_calculation", False),
     }
 
 
@@ -111,14 +114,18 @@ async def run_graph_stream(
     if is_situation and matched_topics:
         # 첫 턴: 체크리스트 초기화 + 검색 결과 캐시
         if checklist_state is None:
-            store.set_checklist_state(
-                session_id,
-                {
-                    "matched_topics": matched_topics,
-                    "checked_items": [],
-                    "turn_count": 1,
-                },
-            )
+            new_state = {
+                "matched_topics": matched_topics,
+                "checked_items": [],
+                "turn_count": 1,
+                "concluded": False,
+                # needs_calculation 영속화 — 후속 턴에서 calc 라우팅 유지
+                "needs_calculation": final_state.get("needs_calculation", False),
+            }
+            # 첫 턴에서 바로 결론이 나온 경우 (정보 충분 시)
+            if final_state.get("is_conclusion", False):
+                new_state["concluded"] = True
+            store.set_checklist_state(session_id, new_state)
             # 첫 턴의 relevant_docs를 캐시하여 후속 턴에서 재사용
             relevant_docs = final_state.get("relevant_docs", [])
             if relevant_docs:
@@ -126,6 +133,10 @@ async def run_graph_stream(
         else:
             # 후속 턴: turn_count 증가 + 사용자 답변을 Q&A 쌍으로 기록
             checklist_state["turn_count"] = checklist_state.get("turn_count", 0) + 1
+            # 이전 턴에서 결론이 나왔으면 concluded 플래그 유지
+            # Why: C2처럼 결론 후 불필요 질문 생성 방지
+            if final_state.get("is_conclusion", False):
+                checklist_state["concluded"] = True
             # 직전 AI 질문을 추출하여 Q&A 쌍으로 저장 → clarify_agent가 중복 질문 방지
             last_ai_question = ""
             for role, content in reversed(prev_messages):

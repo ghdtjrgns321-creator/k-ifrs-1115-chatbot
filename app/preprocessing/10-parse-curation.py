@@ -98,6 +98,19 @@ def expand_range(raw: str) -> list[str]:
     return [f"{prefix}{n}" for n in range(start_n, end_n + 1)]
 
 
+def _strip_sub_para(s: str) -> str:
+    """하위 문단 표시 제거: '84⑵' → '84', '89(2)' → '89'.
+
+    원 괄호 숫자(⑴~⑼, U+2474~U+247C)와 일반 괄호 하위번호를 제거합니다.
+    DB는 하위 문단을 별도 문서로 저장하지 않으므로 기본 문단으로 조회해야 합니다.
+    """
+    # 원 괄호 숫자: ⑴⑵⑶⑷⑸⑹⑺⑻⑼ (U+2474~U+247C)
+    s = re.sub(r"[\u2474-\u247C]", "", s)
+    # 일반 괄호 하위번호: (1), (2), ...
+    s = re.sub(r"\(\d+\)$", "", s)
+    return s.strip()
+
+
 def parse_para_list(text: str) -> list[str]:
     """문단 범위 텍스트에서 개별 문단 번호 리스트를 추출.
 
@@ -106,7 +119,7 @@ def parse_para_list(text: str) -> list[str]:
     result: list[str] = []
     # 쉼표로 분리
     for part in re.split(r"[,，]", text):
-        part = part.strip()
+        part = _strip_sub_para(part.strip())
         if not part:
             continue
         # 범위인지 확인
@@ -568,6 +581,35 @@ def main() -> None:
             f"qna={n_qna}  findings={n_findings}  links={n_links}"
         )
 
+    # 기존 파일 로드 (보존 로직용)
+    existing: dict | None = None
+    if OUTPUT_FILE.exists():
+        existing = json.loads(OUTPUT_FILE.read_text(encoding="utf-8"))
+
+    # ── 통합 토픽 → 개별 토픽 분할 ────────────────────────────────────────────
+    # Why: 큐레이션 원본은 "통제 이전의 특수 형태"(4개)와 "고객의 권리 관련"(3개)을
+    # 합산 헤더로 묶지만, UI·decision_trees는 개별 토픽명으로 참조.
+    # 이전에는 _add_topics.py를 별도 실행했으나, 매번 누락되어 반복 사고 발생.
+    # ADR-16 교훈: 파이프라인을 단일 스크립트로 통합하여 누락 원천 차단.
+    result = _split_merged_topics(result, existing=existing)
+
+    # 기존 파일의 qna_descs/finding_descs 보존 (파이프라인 재실행 시 유실 방지)
+    # Why: qna_descs/finding_descs는 수동 큐레이션 데이터라 파싱 결과에 없음
+    if existing:
+        preserved = 0
+        for topic_key, topic_val in existing.items():
+            if topic_key not in result:
+                continue
+            for sec_key, desc_key in [("qna", "qna_descs"), ("findings", "finding_descs")]:
+                old_descs = topic_val.get(sec_key, {}).get(desc_key, {})
+                if old_descs and sec_key in result[topic_key]:
+                    new_descs = result[topic_key][sec_key].get(desc_key, {})
+                    if not new_descs or len(new_descs) < len(old_descs):
+                        result[topic_key][sec_key][desc_key] = old_descs
+                        preserved += len(old_descs)
+        if preserved:
+            print(f"\n🔒 기존 desc 보존: {preserved}건 (qna_descs + finding_descs)")
+
     # JSON 출력
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_FILE.write_text(
@@ -577,5 +619,95 @@ def main() -> None:
     print(f"\n💾 {OUTPUT_FILE} 저장 완료 ({len(result)}개 토픽)")
 
 
+def _split_merged_topics(topics: dict, existing: dict | None = None) -> dict:
+    """통합 토픽 2개를 7개 개별 토픽으로 분할합니다.
+
+    _add_topics.py에 하드코딩된 데이터를 그대로 이관.
+    이 함수가 main() 안에서 자동 호출되므로 별도 스크립트 실행 불필요.
+
+    existing이 주어지면 split 토픽의 qna_descs/finding_descs도 보존합니다.
+    Why: SPLIT_TOPICS는 정적 하드코딩이라 topics.json 수동 편집 내용이 덮어씌워짐
+    """
+    from app.preprocessing._add_topics_data import SPLIT_TOPICS, MERGED_KEYS
+
+    removed = 0
+    for key in MERGED_KEYS:
+        if key in topics:
+            del topics[key]
+            removed += 1
+
+    topics.update(SPLIT_TOPICS)
+
+    # 기존 topics.json의 split 토픽 필드도 보존 (qna_descs/finding_descs)
+    if existing:
+        preserved = 0
+        for topic_key in SPLIT_TOPICS:
+            if topic_key not in existing:
+                continue
+            for sec_key, desc_key in [("qna", "qna_descs"), ("findings", "finding_descs")]:
+                old_descs = existing[topic_key].get(sec_key, {}).get(desc_key, {})
+                if old_descs:
+                    new_descs = topics[topic_key].get(sec_key, {}).get(desc_key, {})
+                    if not new_descs or len(new_descs) < len(old_descs):
+                        topics[topic_key][sec_key][desc_key] = old_descs
+                        preserved += len(old_descs)
+        if preserved:
+            print(f"   🔒 split 토픽 desc 보존: {preserved}건")
+
+    print(f"\n🔀 토픽 분할: {removed}개 통합 토픽 제거 → {len(SPLIT_TOPICS)}개 개별 토픽 추가")
+    print(f"   최종 토픽 수: {len(topics)}개")
+    return topics
+
+
+def verify_data_consistency() -> None:
+    """topics.json ↔ summary-embeddings.json ↔ topic-embeddings.json 교차 검증.
+
+    파이프라인 실행 순서(10→12→13) 미준수 시 데이터 버전 불일치를 감지합니다.
+    """
+    summary_path = Path("data/topic-curation/summary-embeddings.json")
+    topic_embed_path = Path("data/topic-curation/topic-embeddings.json")
+
+    if not OUTPUT_FILE.exists():
+        print("⚠️  topics.json이 없습니다. 먼저 10-parse-curation.py를 실행하세요.")
+        return
+
+    topics = json.loads(OUTPUT_FILE.read_text(encoding="utf-8"))
+    topic_keys = set(topics.keys())
+    issues = 0
+
+    # topics.json에 등록된 QNA/감리사례 ID 수집
+    valid_ids: set[str] = set()
+    for td in topics.values():
+        valid_ids.update(td.get("qna", {}).get("qna_ids", []))
+        valid_ids.update(td.get("findings", {}).get("finding_ids", []))
+
+    # summary-embeddings.json 검증
+    if summary_path.exists():
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        orphaned = [k for k in summary if k not in valid_ids]
+        if orphaned:
+            print(f"⚠️  summary-embeddings.json orphaned ID {len(orphaned)}건: {orphaned[:5]}")
+            issues += len(orphaned)
+    else:
+        print("ℹ️  summary-embeddings.json 미존재 — 12-summary-embed.py 실행 필요")
+
+    # topic-embeddings.json 검증
+    if topic_embed_path.exists():
+        topic_embeds = json.loads(topic_embed_path.read_text(encoding="utf-8"))
+        orphaned_topics = [k for k in topic_embeds if k not in topic_keys]
+        if orphaned_topics:
+            print(f"⚠️  topic-embeddings.json orphaned 토픽 {len(orphaned_topics)}건: {orphaned_topics}")
+            issues += len(orphaned_topics)
+    else:
+        print("ℹ️  topic-embeddings.json 미존재 — 13-topic-embed.py 실행 필요")
+
+    if issues == 0:
+        print("✅ 데이터 교차 검증 통과 — 불일치 0건")
+    else:
+        print(f"\n⚠️  총 {issues}건 불일치 감지. 12→13 스크립트를 재실행하세요.")
+
+
 if __name__ == "__main__":
     main()
+    print("\n" + "=" * 60)
+    verify_data_consistency()
