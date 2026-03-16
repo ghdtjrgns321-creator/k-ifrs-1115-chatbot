@@ -22,6 +22,9 @@ COPY --from=builder /app/.venv /app/.venv
 # 소스코드 복사 (app/domain/topics.json 포함)
 COPY app/ ./app/
 
+# Streamlit 테마 설정
+COPY .streamlit/ ./.streamlit/
+
 # .venv/bin을 PATH 앞에 추가하여 가상환경 활성화 효과
 ENV PATH="/app/.venv/bin:$PATH"
 # Python 출력 버퍼링 비활성화 (Docker 로그 실시간 확인용)
