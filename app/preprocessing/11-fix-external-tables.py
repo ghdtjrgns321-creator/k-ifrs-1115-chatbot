@@ -22,9 +22,6 @@ from bs4 import BeautifulSoup
 
 from app.config import settings
 
-# 03-chunk-with-weight.py의 clean_html_to_md를 재사용
-from app.preprocessing import chunk_helper  # noqa: E402 — 아래에서 동적 임포트
-
 BASE_URL = "https://www.kifrs.com"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 CRAWL_DELAY = 0.3
@@ -84,6 +81,9 @@ def clean_html_to_md(item: dict) -> str:
     for tbl in soup.find_all("table"):
         md_table = []
         rows = tbl.find_all("tr")
+        # <th>가 있으면 첫 행이 진짜 헤더, 없으면 빈 헤더를 삽입하여 데이터 행 볼드 방지
+        first_row_cells = rows[0].find_all(["td", "th"]) if rows else []
+        has_th = any(c.name == "th" for c in first_row_cells)
         for i, tr in enumerate(rows):
             cols = tr.find_all(["td", "th"])
             row_data = [
@@ -92,8 +92,12 @@ def clean_html_to_md(item: dict) -> str:
             ]
             if not row_data:
                 continue
+            # <th> 없는 테이블: 첫 데이터 행 전에 빈 헤더+구분선 삽입
+            if i == 0 and not has_th:
+                md_table.append("| " + " | ".join([" "] * len(row_data)) + " |")
+                md_table.append("|" + "|".join(["---"] * len(row_data)) + "|")
             md_table.append("| " + " | ".join(row_data) + " |")
-            if i == 0:
+            if i == 0 and has_th:
                 md_table.append("|" + "|".join(["---"] * len(row_data)) + "|")
         new_tag = soup.new_tag("p")
         new_tag.string = "\n\n" + "\n".join(md_table) + "\n\n"

@@ -183,11 +183,19 @@ def clean_text(text: str) -> str:
         r'<span style="color:#1f77b4;font-weight:600;">\1</span>',
         text,
     )
-    # 3.5) 문서 ID 강조 — [FSS-CASE-xxx], [QNA-xxx], [KICPA-CASE-xxx] 패턴
-    # AI 답변에서 사례·질의회신 인용 시 사용자가 왼쪽 패널과 매칭할 수 있도록 강조
+    # 3.5) 문서 ID 강조 — QNA-xxx, FSS-CASE-xxx, KICPA-CASE-xxx, EDU-xxx 패턴
+    # AI 답변에서 사례·질의회신·교육자료 인용 시 사용자가 왼쪽 패널과 매칭할 수 있도록 강조
+    # 대괄호로 감싼 패턴: [QNA-xxx] → [<span>QNA-xxx</span>]
     text = re.sub(
-        r"\[((?:FSS-CASE|KICPA-CASE|QNA)-[\w-]+)\]",
+        r"\[((?:FSS-CASE|KICPA-CASE|QNA|EDU)-[\w-]+)\]",
         r'[<span style="color:#1f77b4;font-weight:600;">\1</span>]',
+        text,
+    )
+    # bare ID 패턴: 대괄호 없이 나오는 QNA-xxx, EDU-KASB-xxx 등도 강조
+    # (?<![\w>-]) : 이미 span 처리된 것(>) 또는 다른 단어 일부인 것 제외
+    text = re.sub(
+        r"(?<![\w>])((?:FSS-CASE|KICPA-CASE|QNA|EDU)-[\w-]+)",
+        r'<span style="color:#1f77b4;font-weight:600;">\1</span>',
         text,
     )
     # 3.6) 적용사례 참조 강조 — "사례11", "사례 1A", "사례 28B" 등
@@ -291,8 +299,18 @@ def _ensure_paragraph_breaks(text: str) -> str:
 
     마크다운에서 단일 줄바꿈은 공백으로 처리되어 단락이 분리되지 않습니다.
     이미 이중 줄바꿈인 곳은 건드리지 않습니다.
+
+    마크다운 테이블 행(|로 시작하는 줄)은 단일 \n이어야 렌더링되므로 보호합니다.
     """
-    return re.sub(r"(?<!\n)\n(?!\n)", "\n\n", text)
+    # 테이블 행 사이의 \n을 보호 마커로 치환 → 전체 \n→\n\n 변환 → 마커 복원
+    # 테이블 행: | 로 시작하는 줄 (구분선 |---|---| 포함)
+    text = re.sub(
+        r"(\|[^\n]*)\n(?=\s*\|)",
+        lambda m: m.group(1) + "\x00",
+        text,
+    )
+    text = re.sub(r"(?<!\n)\n(?!\n)", "\n\n", text)
+    return text.replace("\x00", "\n")
 
 
 def _format_qna(text: str) -> str:
@@ -350,3 +368,174 @@ def _format_findings(text: str) -> str:
     text = re.sub(r"^(레퍼런스\s.+)$", r"**\1**", text, flags=re.MULTILINE)
     text = _ensure_paragraph_breaks(text)
     return text
+
+
+# ── 마크다운 테이블 → HTML 변환 ──────────────────────────────────────────────
+
+# Why: _render_document_expander에서 \n→<br> 변환 시 마크다운 테이블 구조가 파괴됨.
+#      테이블 블록을 미리 HTML <table>로 변환하면 <br> 변환의 영향을 받지 않음.
+
+_MD_TABLE_BLOCK_RE = re.compile(
+    r"((?:^|\n)(?:\|[^\n]+\|[ \t]*\n?){2,})",
+    re.MULTILINE,
+)
+
+
+def _clean_table_grid(
+    header: list[str] | None,
+    rows: list[list[str]],
+) -> tuple[list[str] | None, list[list[str]]]:
+    """파이프 테이블에서 빈 열·빈 행을 정리합니다.
+
+    Why: 11-fix-external-tables.py가 HTML colspan/rowspan을 무시하고 변환하므로
+         항상 비어있는 열과 모든 셀이 빈 행이 대량 생성됨.
+         QNA 분개 테이블(3열, 빈 열 없음)은 영향 없음.
+    """
+    if not rows:
+        return header, rows
+
+    # 1) 빈 행 제거 — 모든 셀이 공백인 행
+    rows = [r for r in rows if any(c.strip() for c in r)]
+
+    # 2) 빈 열 제거 — 헤더+모든 데이터에서 공백인 열
+    max_cols = max((len(r) for r in rows), default=0)
+    if header:
+        max_cols = max(max_cols, len(header))
+
+    keep: list[int] = []
+    for ci in range(max_cols):
+        has = False
+        if header and ci < len(header) and header[ci].strip():
+            has = True
+        if not has:
+            for r in rows:
+                if ci < len(r) and r[ci].strip():
+                    has = True
+                    break
+        if has:
+            keep.append(ci)
+
+    if len(keep) < max_cols:
+        header = [header[i] for i in keep if i < len(header)] if header else None
+        rows = [[r[i] for i in keep if i < len(r)] for r in rows]
+
+    return header, rows
+
+
+def _md_table_to_html(block: str) -> str:
+    """단일 마크다운 테이블 블록을 HTML <table>로 변환합니다.
+
+    IE 외부 테이블(11-fix-external-tables.py 산출물)의 경우:
+      - 빈 열·빈 행을 정리하고
+      - 설명 행(내용 셀 1~2개)은 테이블 밖 텍스트로 분리
+      - 분개 행(내용 셀 3개 이상)만 테이블로 렌더링
+    QNA 분개 테이블(3열, 빈 열 없음)은 그대로 통과.
+    """
+    lines = [ln.strip() for ln in block.strip().split("\n") if ln.strip()]
+    if len(lines) < 2:
+        return block
+
+    def _parse_cells(row: str) -> list[str]:
+        row = row.strip().strip("|")
+        return [c.strip() for c in row.split("|")]
+
+    # 구분선(|---|---|) 여부로 헤더 판별
+    has_header = bool(re.match(r"^[\s|:\-]+$", lines[1]))
+
+    style = (
+        "border-collapse:collapse; width:100%; margin:0.5rem 0; "
+        "font-size:0.88em; line-height:1.6;"
+    )
+    cell_style = "border:1px solid #d1d5db; padding:4px 8px;"
+    header_style = f"{cell_style} background:#f0f4ff; font-weight:600; text-align:center;"
+
+    # 파싱
+    header_cells: list[str] | None = None
+    if has_header:
+        header_cells = _parse_cells(lines[0])
+        data_lines = lines[2:]
+    else:
+        data_lines = lines
+
+    parsed_rows: list[list[str]] = []
+    for row_line in data_lines:
+        if re.match(r"^[\s|:\-]+$", row_line):
+            continue
+        parsed_rows.append(_parse_cells(row_line))
+
+    # 빈 열·빈 행 정리
+    header_cells, parsed_rows = _clean_table_grid(header_cells, parsed_rows)
+
+    if not parsed_rows:
+        return block
+
+    num_cols = max((len(r) for r in parsed_rows), default=0)
+    if header_cells:
+        num_cols = max(num_cols, len(header_cells))
+
+    # 빈 헤더(모든 셀 공백)이면 헤더 자체를 생략
+    if header_cells and not any(h.strip() for h in header_cells):
+        header_cells = None
+
+    # Why: 4열 이상이고 설명 행(내용 셀 ≤2)이 있으면, 설명을 <div>로 분리하여
+    #       expander 전체 너비를 사용. 분개 행은 CSS grid로 렌더링.
+    #       <table> 인라인 스타일은 Streamlit CSS가 덮어쓰고,
+    #       마크다운 파이프 테이블은 \n→<br> 변환으로 깨지므로 <div> 사용.
+    has_sparse = any(
+        sum(1 for c in r if c.strip()) <= 2 for r in parsed_rows
+    )
+    if has_sparse and num_cols >= 4 and not header_cells:
+        parts: list[str] = []
+        je_style = (
+            "display:grid; grid-template-columns:1fr 1fr 1fr 1fr; "
+            "gap:0; margin:0.2rem 0 0.8rem; font-size:0.88em; line-height:1.6;"
+        )
+        je_cell = (
+            "padding:4px 10px; border:1px solid #e2e8f0; "
+            "white-space:nowrap;"
+        )
+
+        for cells in parsed_rows:
+            while len(cells) < num_cols:
+                cells.append("")
+            filled = [c for c in cells if c.strip()]
+            if len(filled) <= 2:
+                # 설명 행 → <div> 텍스트 (expander 전체 너비 사용)
+                desc = " ".join(c.replace("\r", " ") for c in filled)
+                desc = re.sub(r"\s{2,}", " ", desc).strip()
+                parts.append(
+                    f'<div style="font-weight:600; margin:0.6rem 0 0.1rem; '
+                    f'font-size:0.9em;">{desc}</div>'
+                )
+            else:
+                # 분개 행 → CSS grid (4셀: 계정, 금액, 계정, 금액)
+                grid_cells = "".join(
+                    f'<div style="{je_cell}">{c}</div>' for c in filled
+                )
+                parts.append(f'<div style="{je_style}">{grid_cells}</div>')
+
+        return "".join(parts)
+
+    # 일반 테이블 (QNA 분개 등): 기존 로직
+    rows_html: list[str] = []
+
+    if header_cells:
+        hcells = "".join(f'<th style="{header_style}">{h}</th>' for h in header_cells)
+        rows_html.append(f"<thead><tr>{hcells}</tr></thead>")
+
+    body_rows: list[str] = []
+    for cells in parsed_rows:
+        while len(cells) < num_cols:
+            cells.append("")
+        tds = "".join(f'<td style="{cell_style}">{c}</td>' for c in cells)
+        body_rows.append(f"<tr>{tds}</tr>")
+
+    if body_rows:
+        rows_html.append(f"<tbody>{''.join(body_rows)}</tbody>")
+
+    return f'<table style="{style}">{"".join(rows_html)}</table>'
+
+
+def md_tables_to_html(text: str) -> str:
+    """텍스트 내 모든 마크다운 파이프 테이블을 HTML <table>로 변환합니다."""
+    return _MD_TABLE_BLOCK_RE.sub(lambda m: _md_table_to_html(m.group(1)), text)

@@ -9,39 +9,26 @@ import re
 
 import streamlit as st
 
+from app.domain.topic_content_map import TOPIC_CONTENT_MAP
 from app.ui.client import _call_search
 from app.ui.session import _go_home
-
-# 버튼 표시명과 JSON 키가 다른 경우의 명시적 매핑
-# JSON에 개별 키가 없는 서브토픽 → 실제 데이터가 있는 부모 토픽으로 라우팅
-_TOPIC_ALIAS: dict[str, str] = {
-    # 통제 이전의 특수 형태 (부모)의 서브토픽
-    "재매입약정": "통제 이전의 특수 형태",
-    "위탁약정": "통제 이전의 특수 형태",
-    "미인도청구약정": "통제 이전의 특수 형태",
-    "고객의 인수": "통제 이전의 특수 형태",
-    # 고객의 권리 관련 (부모)의 서브토픽
-    "고객의 선택권": "고객의 권리 관련",
-    "행사하지 않은 권리": "고객의 권리 관련",
-    "고객이 행사하지 않은 권리": "고객의 권리 관련",
-    "환불되지 않는 선수수수료": "고객의 권리 관련",
-}
-
+from app.ui.topic_tabs import (
+    _render_findings_tab,
+    _render_ie_tab,
+    _render_main_bc_tab,
+    _render_qna_tab,
+)
 
 def _resolve_topic_key(button_name: str, topic_map: dict) -> str | None:
     """버튼 표시명을 TOPIC_CONTENT_MAP 키로 변환합니다.
 
-    별칭을 최우선 체크하여 빈 스텁 대신 실제 데이터가 있는 부모 토픽으로 라우팅합니다.
+    괄호 내 설명을 제거하여 JSON 키와 매칭합니다.
     """
     stripped = re.sub(r"\([^)]+\)$", "", button_name).strip()
-    # 1) 별칭 매핑 — 서브토픽→부모토픽 라우팅 (빈 스텁 우회)
-    alias = _TOPIC_ALIAS.get(button_name) or _TOPIC_ALIAS.get(stripped)
-    if alias and alias in topic_map:
-        return alias
-    # 2) 정확 매칭
+    # 1) 정확 매칭
     if button_name in topic_map:
         return button_name
-    # 3) 괄호 제거 후 매칭
+    # 2) 괄호 제거 후 매칭
     if stripped in topic_map:
         return stripped
     return None
@@ -82,8 +69,6 @@ def _render_topic_browse() -> None:
         )
 
     # ── 토픽 데이터 로드 ────────────────────────────────────────────────────
-    from app.domain.topic_content_map import TOPIC_CONTENT_MAP
-
     # 버튼 표시명 → JSON 키 정규화 (괄호 설명 제거, 별칭 매핑)
     resolved_key = _resolve_topic_key(topic, TOPIC_CONTENT_MAP)
     topic_data = TOPIC_CONTENT_MAP.get(resolved_key) if resolved_key else None
@@ -118,28 +103,24 @@ def _render_topic_browse() -> None:
     )
 
     # ── 4탭 렌더링 ─────────────────────────────────────────────────────────
-    from app.ui.topic_tabs import (
-        _render_findings_tab,
-        _render_ie_tab,
-        _render_main_bc_tab,
-        _render_qna_tab,
-    )
-
     tab_labels = ["📘 본문·BC", "📋 적용사례", "💬 질의회신", "🚨 감리지적사례"]
     tabs = st.tabs(tab_labels)
 
+    # 토픽명: 빈 탭에서 토픽별 안내 메시지 생성에 사용
+    _tname = resolved_key or topic
+
     with tabs[0]:
         with st.container(gap="xsmall"):
-            _render_main_bc_tab(topic_data.get("main_and_bc", {}))
+            _render_main_bc_tab(topic_data.get("main_and_bc", {}), _tname)
     with tabs[1]:
         with st.container(gap="xsmall"):
-            _render_ie_tab(topic_data.get("ie", {}))
+            _render_ie_tab(topic_data.get("ie", {}), _tname)
     with tabs[2]:
         with st.container(gap="xsmall"):
-            _render_qna_tab(topic_data.get("qna", {}))
+            _render_qna_tab(topic_data.get("qna", {}), _tname)
     with tabs[3]:
         with st.container(gap="xsmall"):
-            _render_findings_tab(topic_data.get("findings", {}))
+            _render_findings_tab(topic_data.get("findings", {}), _tname)
 
     # ── 하단: 자유 질문 입력 (토픽 맥락) ─────────────────────────────────────
     st.divider()
@@ -149,19 +130,23 @@ def _render_topic_browse() -> None:
         "AI가 관련 조항을 근거로 답변을 드립니다."
     )
 
-    with st.form("topic_search_form", clear_on_submit=False):
+    @st.fragment
+    def _topic_search_fragment():
         query = st.text_area(
             "상황 입력",
             placeholder=f"'{topic}'과 관련된 구체적인 거래 상황이나 궁금한 점을 입력해 주세요...\n"
             f"(예: 이 경우에 수익을 어떤 시점에 인식해야 하나요?)",
             label_visibility="collapsed",
             height=100,
+            key="topic_search_input",
         )
-        submitted = st.form_submit_button(
-            "검색하기", use_container_width=True, type="primary"
-        )
+        if st.button(
+            "검색하기",
+            use_container_width=True,
+            type="primary",
+            key="topic_search_btn",
+        ):
+            if query and query.strip():
+                _call_search(query.strip())
 
-    search_placeholder = st.empty()
-    if submitted and query:
-        with search_placeholder:
-            _call_search(query.strip())
+    _topic_search_fragment()

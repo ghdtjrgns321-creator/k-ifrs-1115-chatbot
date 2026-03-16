@@ -16,13 +16,31 @@ OUTPUT_PATH = Path("data/topic-curation/summary-embeddings.json")
 def main():
     raw = json.loads(TOPICS_PATH.read_text(encoding="utf-8"))
 
-    # 서머리 수집: {id: {type, topic, desc}}
+    # topics.json에 등록된 QNA/감리사례 ID 전체 수집 (orphaned 필터용)
+    # Why: summary-embeddings.json에 topics.json에 없는 ID가 남으면
+    #       summary_matcher에서 노이즈로 작용
+    valid_qna_ids: set[str] = set()
+    valid_finding_ids: set[str] = set()
+    for topic_data in raw.values():
+        valid_qna_ids.update(topic_data.get("qna", {}).get("qna_ids", []))
+        valid_finding_ids.update(topic_data.get("findings", {}).get("finding_ids", []))
+
+    # 서머리 수집: {id: {type, topic, desc}} — topics.json 등록 ID만 포함
     entries: dict[str, dict] = {}
+    orphaned = 0
     for topic_name, topic_data in raw.items():
         for qid, desc in topic_data.get("qna", {}).get("qna_descs", {}).items():
+            if qid not in valid_qna_ids:
+                orphaned += 1
+                continue
             entries[qid] = {"type": "qna", "topic": topic_name, "desc": desc}
         for fid, desc in topic_data.get("findings", {}).get("finding_descs", {}).items():
+            if fid not in valid_finding_ids:
+                orphaned += 1
+                continue
             entries[fid] = {"type": "finding", "topic": topic_name, "desc": desc}
+    if orphaned:
+        print(f"⚠️  orphaned ID {orphaned}건 제외 (topics.json에 미등록)")
 
     if not entries:
         print("서머리가 없습니다.")

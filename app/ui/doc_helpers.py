@@ -71,7 +71,8 @@ def _ie_para_sort_key(doc: dict) -> tuple[str, int, str]:
 def _is_ie_doc(doc: dict) -> bool:
     """IE 적용사례 문서 여부 판별."""
     source = doc.get("source") or doc.get("category", "")
-    if source == "적용사례IE":
+    from app.ui.constants import SRC_IE
+    if source == SRC_IE:
         return True
     chunk_id = doc.get("chunk_id", "") or ""
     return bool(re.match(r"1115-IE", chunk_id))
@@ -218,6 +219,60 @@ def _convert_journal_entries(text: str) -> str:
         result_parts.append(table)
 
     return "\n".join(result_parts)
+
+
+def _build_pdr_label(doc_id: str, title: str, content: str) -> str:
+    """QNA/감리지적사례 expander 제목을 [ID] 설명 형태로 생성합니다.
+
+    DB title 상태에 따라 3가지 케이스:
+      A) title이 이미 [ID]를 포함 → "레퍼런스" 제거 후 그대로
+      B) title이 설명만 있음 (ID 미포함) → [doc_id] 접두어 추가
+      C) title이 doc_id와 동일하거나 빈값 → content 첫 줄에서 설명 추출
+    """
+    clean = re.sub(r"^레퍼런스\s*", "", title).strip()
+
+    # A) 이미 [ID] 포함 → 그대로
+    if f"[{doc_id}]" in clean:
+        return clean
+
+    # C) title 없거나 doc_id와 동일 → content 첫 줄에서 추출
+    if not clean or clean == doc_id:
+        if content:
+            first_line = content.split("\n")[0].strip()
+            # "레퍼런스 [ID] 제목" 또는 "[ID] 제목" 또는 "ID 제목" 패턴
+            m = re.match(
+                r"^(?:레퍼런스\s*)?\[?" + re.escape(doc_id) + r"\]?\s*(.+)",
+                first_line,
+            )
+            if m:
+                return f"[{doc_id}] {m.group(1).strip()}"
+        return doc_id
+
+    # B) 설명은 있지만 [ID] 없음 → prepend
+    return f"[{doc_id}] {clean}"
+
+
+def _get_parent_field(parent: dict, field: str, default: str = "") -> str:
+    """parent 문서에서 필드를 조회합니다 (top-level → metadata 중첩 순서).
+
+    QNA/감리사례 parent 컬렉션은 title, hierarchy 등이 metadata 안에 중첩되어 있으므로
+    top-level에 없으면 metadata에서 찾습니다.
+    """
+    val = parent.get(field)
+    if val:
+        return val
+    meta = parent.get("metadata") or {}
+    return meta.get(field, default)
+
+
+def _hierarchy_path(hierarchy: str) -> str:
+    """hierarchy에서 마지막 세그먼트(제목)를 제거하고 경로만 반환합니다.
+
+    '질의회신 > 신속처리질의 > K-IFRS 제1115호 > 매출 시 지급한 지체상금의 회계처리'
+    → '질의회신 > 신속처리질의 > K-IFRS 제1115호'
+    """
+    parts = [p.strip() for p in hierarchy.split(">") if p.strip()]
+    return " > ".join(parts[:-1]) if len(parts) > 1 else hierarchy
 
 
 def _format_pdr_content(content: str) -> str:

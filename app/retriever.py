@@ -1,8 +1,20 @@
 import re
+from concurrent.futures import ThreadPoolExecutor
 from pymongo import MongoClient
 from rank_bm25 import BM25Okapi
 from app.config import settings
 from app.embeddings import embed_query_sync
+from app.ui.constants import (
+    DOC_PREFIX_EDU,
+    DOC_PREFIX_QNA,
+    DOC_PREFIXES_FINDING,
+    SRC_BODY,
+    SRC_EDU,
+    SRC_FINDING,
+    SRC_IE,
+    SRC_QNA,
+    SRC_QNA_SHORT,
+)
 
 # ── 상수 ────────────────────────────────────────────────────────────────────────
 QNA_PARENT_COLL = "k-ifrs-1115-qna-parents"
@@ -14,6 +26,7 @@ RRF_K = 60  # RRF 논문 권장값
 QNA_SUPPLEMENT = 15  # QNA 보조 최대 추가 수
 FINDINGS_SUPPLEMENT = 15  # 감리사례 보조 최대 추가 수
 KAI_SUPPLEMENT = 5  # 교육자료 보조 최대 추가 수
+IE_SUPPLEMENT = 10  # 적용사례IE 보조 최대 추가 수 (UI에서 상위 3개만 표시)
 
 
 # ── Lazy 초기화 ──────────────────────────────────────────────────────────────────
@@ -194,35 +207,63 @@ def _fuse_rrf(v_results: list[dict], k_results: list[dict], final_k: int) -> lis
 def _classify_source(parent_id: str | None, category: str = "") -> str:
     """parent_id 접두어와 category로 문서 출처를 결정합니다."""
     if parent_id:
-        if str(parent_id).startswith("QNA-"):
-            return "QNA"
-        if str(parent_id).startswith(("FSS-", "KICPA-")):
-            return "감리사례"
-        if str(parent_id).startswith("EDU-"):
-            return "교육자료"
-    return category if category else "본문"
+        if str(parent_id).startswith(DOC_PREFIX_QNA):
+            return SRC_QNA_SHORT
+        if str(parent_id).startswith(DOC_PREFIXES_FINDING):
+            return SRC_FINDING
+        if str(parent_id).startswith(DOC_PREFIX_EDU):
+            return SRC_EDU
+    return category if category else SRC_BODY
 
 
-def _get_parent_content(parent_id: str, source: str) -> str:
-    """PDR 패턴: Child 청크의 parent_id로 부모 원문 전체를 조회합니다."""
+def _batch_get_parent_contents(
+    parent_ids_by_source: dict[str, list[str]],
+) -> dict[str, str]:
+    """source별 parent_id를 모아서 배치 조회합니다.
+
+    Why: 개별 find_one() N회 → $in 배치 조회 source당 1회로 왕복 횟수 감소.
+    """
     db = _get_db()
-    if source == "QNA":
-        doc = db[QNA_PARENT_COLL].find_one({"_id": parent_id})
-    elif source == "감리사례":
-        doc = db[FINDINGS_PARENT_COLL].find_one({"_id": parent_id})
-    elif source == "교육자료":
-        doc = db[KAI_PARENT_COLL].find_one({"_id": parent_id})
-    else:
-        return ""
-    return doc.get("content", "") if doc else ""
+    result: dict[str, str] = {}
+
+    # source → (컬렉션 이름, parent_id 목록) 매핑
+    source_coll_map = {
+        SRC_QNA_SHORT: QNA_PARENT_COLL,
+        SRC_FINDING: FINDINGS_PARENT_COLL,
+        SRC_EDU: KAI_PARENT_COLL,
+    }
+
+    for source, pids in parent_ids_by_source.items():
+        coll_name = source_coll_map.get(source)
+        if not coll_name or not pids:
+            continue
+        # $in 배치 조회 — 컬렉션당 1회 왕복
+        for doc in db[coll_name].find({"_id": {"$in": pids}}):
+            result[doc["_id"]] = doc.get("content", "")
+
+    return result
 
 
 def _docs_from_fused(fused_docs: list[dict]) -> list[dict]:
     """RRF 융합 결과를 RAG 통합 스키마로 변환합니다 (PDR 포함)."""
-    results = []
+    # 1단계: source 분류 + parent_id 수집 (배치 조회 준비)
+    classified: list[tuple[dict, str]] = []
+    pids_by_source: dict[str, list[str]] = {}
+
     for doc in fused_docs:
         parent_id = doc.get("parent_id")
         source = _classify_source(parent_id, doc.get("category", ""))
+        classified.append((doc, source))
+        if source != SRC_BODY and parent_id:
+            pids_by_source.setdefault(source, []).append(parent_id)
+
+    # 2단계: 배치 조회 — source당 1회 MongoDB 왕복
+    parent_contents = _batch_get_parent_contents(pids_by_source)
+
+    # 3단계: 원래 순서대로 결과 조립
+    results = []
+    for doc, source in classified:
+        parent_id = doc.get("parent_id")
         results.append(
             {
                 "source": source,
@@ -231,8 +272,8 @@ def _docs_from_fused(fused_docs: list[dict]) -> list[dict]:
                 "category": doc.get("category", ""),
                 "chunk_type": doc.get("chunk_type", ""),
                 "content": doc.get("text", ""),
-                "full_content": _get_parent_content(parent_id, source)
-                if source != "본문"
+                "full_content": parent_contents.get(parent_id, "")
+                if source != SRC_BODY
                 else "",
                 "title": doc.get("title", ""),
                 "case_group_title": doc.get("case_group_title", ""),
@@ -302,8 +343,10 @@ def _parse_doc_ids_from_text(text: str) -> dict[str, list[str]]:
                     seen.add(p)
                     ids["paragraphs"].append(p)
 
-    # [XXX] 패턴에서 괄호 내용 추출
+    # [대괄호] + (소괄호) 양쪽에서 참조 추출
+    # Why: section 4,5는 [대괄호], section 2,7은 (소괄호) 사용
     brackets = re.findall(r"\[([^\]]+)\]", text)
+    brackets += re.findall(r"\(([^)]*(?:QNA|FSS|KICPA|EDU|IE)[^)]*)\)", text)
 
     for bracket in brackets:
         # "연계" 접미사 제거
@@ -361,6 +404,13 @@ def _parse_doc_ids_from_text(text: str) -> dict[str, list[str]]:
             if not part:
                 continue
 
+            # 축약 ID 정규화: FSS-2022-... → FSS-CASE-2022-..., KICPA-2021-... → KICPA-CASE-2021-...
+            # Why: decision_tree section 2에서 축약 형태 사용, MongoDB _id는 풀 ID
+            if part.startswith("FSS-") and not part.startswith("FSS-CASE-"):
+                part = part.replace("FSS-", "FSS-CASE-", 1)
+            elif part.startswith("KICPA-") and not part.startswith("KICPA-CASE-"):
+                part = part.replace("KICPA-", "KICPA-CASE-", 1)
+
             if part.startswith("QNA-"):
                 current_prefix = "QNA-"
                 _add_ref(part, ids, seen)
@@ -396,10 +446,11 @@ def _add_ref(ref_id: str, ids: dict, seen: set) -> None:
 
 
 def _fetch_ie_case_chunks(case_numbers: list[str]) -> list[dict]:
-    """IE 사례 번호 → 본문 컬렉션에서 해당 사례의 청크들을 조회합니다.
+    """IE 사례 번호 → 본문 컬렉션에서 해당 사례의 청크들을 사례 단위로 병합하여 반환합니다.
 
-    Why: IE 사례는 parent 컬렉션이 없고, chunk_id가 1115-IE3~IE6 식으로 연속됨.
-    hierarchy에서 '사례 N:' 패턴으로 필터링.
+    Why: IE 사례 하나는 여러 문단(IE48, IE48A, IE48B...)으로 구성됨.
+    문단을 개별 doc으로 반환하면 GENERATE_DOC_LIMIT 슬롯을 과다 점유하므로,
+    같은 사례의 문단들을 하나의 문서로 합침. 사례 1건 = 1 doc.
     """
     if not case_numbers:
         return []
@@ -407,8 +458,9 @@ def _fetch_ie_case_chunks(case_numbers: list[str]) -> list[dict]:
     db = _get_db()
     coll = db[settings.mongo_collection_name]
 
-    # "사례 N" regex OR 조건 생성
-    patterns = [re.compile(rf"사례\s*{re.escape(n)}[\s:：]") for n in case_numbers]
+    patterns = {
+        n: re.compile(rf"사례\s*{re.escape(n)}[\s:：]") for n in case_numbers
+    }
 
     ie_chunks = list(
         coll.find(
@@ -417,15 +469,33 @@ def _fetch_ie_case_chunks(case_numbers: list[str]) -> list[dict]:
         )
     )
 
-    results = []
+    # 사례 번호별로 문단 그룹핑
+    grouped: dict[str, list[dict]] = {n: [] for n in case_numbers}
     seen_ids: set[str] = set()
     for doc in ie_chunks:
         hierarchy = doc.get("hierarchy", "")
-        for pattern in patterns:
+        for case_num, pattern in patterns.items():
             if pattern.search(hierarchy) and doc["chunk_id"] not in seen_ids:
                 seen_ids.add(doc["chunk_id"])
-                results.append(doc)
+                grouped[case_num].append(doc)
                 break
+
+    # 사례별 문단들을 하나의 doc으로 병합
+    results = []
+    for case_num, chunks in grouped.items():
+        if not chunks:
+            continue
+        # chunk_id 순 정렬 (IE244 < IE245 < IE245A)
+        chunks.sort(key=lambda d: d.get("chunk_id", ""))
+        first = chunks[0]
+        merged_text = "\n\n".join(c.get("text", "") for c in chunks)
+        chunk_ids = [c.get("chunk_id", "") for c in chunks]
+        results.append({
+            **first,
+            "text": merged_text,
+            "chunk_id": f"1115-IE-case-{case_num}",
+            "_merged_chunk_ids": chunk_ids,
+        })
 
     return results
 
@@ -453,6 +523,12 @@ def fetch_pinpoint_docs(matched_topics: list[dict]) -> list[dict]:
         ct = topic.get("checklist_text", "")
         if ct:
             all_text_parts.append(ct)
+        # checklist (리스트): section 2에 (소괄호) 참조 포함
+        for item in topic.get("checklist", []):
+            all_text_parts.append(item)
+        # critical_factors: section 7에 (문단 B37⑴) 등 핵심 문단 참조
+        for item in topic.get("critical_factors", []):
+            all_text_parts.append(item)
 
     combined_text = "\n".join(all_text_parts)
     parsed = _parse_doc_ids_from_text(combined_text)
@@ -472,10 +548,10 @@ def fetch_pinpoint_docs(matched_topics: list[dict]) -> list[dict]:
                 seen_parent_ids.add(qna_id)
                 results.append(
                     {
-                        "source": "QNA",
+                        "source": SRC_QNA_SHORT,
                         "chunk_id": f"{qna_id}_pinpoint",
                         "parent_id": qna_id,
-                        "category": "질의회신",
+                        "category": SRC_QNA,
                         "chunk_type": "pinpoint",
                         "content": doc.get("content", "")[:500],
                         "full_content": doc.get("content", ""),
@@ -499,10 +575,10 @@ def fetch_pinpoint_docs(matched_topics: list[dict]) -> list[dict]:
                 seen_parent_ids.add(fid)
                 results.append(
                     {
-                        "source": "감리사례",
+                        "source": SRC_FINDING,
                         "chunk_id": f"{fid}_pinpoint",
                         "parent_id": fid,
-                        "category": "감리사례",
+                        "category": SRC_FINDING,
                         "chunk_type": "pinpoint",
                         "content": doc.get("content", "")[:500],
                         "full_content": doc.get("content", ""),
@@ -526,10 +602,10 @@ def fetch_pinpoint_docs(matched_topics: list[dict]) -> list[dict]:
                 seen_parent_ids.add(eid)
                 results.append(
                     {
-                        "source": "교육자료",
+                        "source": SRC_EDU,
                         "chunk_id": f"{eid}_pinpoint",
                         "parent_id": eid,
-                        "category": "교육자료",
+                        "category": SRC_EDU,
                         "chunk_type": "pinpoint",
                         "content": doc.get("content", "")[:500],
                         "full_content": doc.get("content", ""),
@@ -543,6 +619,7 @@ def fetch_pinpoint_docs(matched_topics: list[dict]) -> list[dict]:
                 )
 
     # 5) IE 사례 → 본문 청크에서 조회 후 RAG 스키마로 변환
+    # source를 SRC_IE로 설정 — ACCORDION_GROUPS에서 IE 그룹으로 분류되도록
     if parsed["ie_cases"]:
         ie_chunks = _fetch_ie_case_chunks(parsed["ie_cases"])
         for doc in ie_chunks:
@@ -552,10 +629,10 @@ def fetch_pinpoint_docs(matched_topics: list[dict]) -> list[dict]:
             seen_parent_ids.add(chunk_id)
             results.append(
                 {
-                    "source": "본문",
+                    "source": SRC_IE,
                     "chunk_id": chunk_id,
                     "parent_id": doc.get("parent_id"),
-                    "category": doc.get("category", ""),
+                    "category": SRC_IE,
                     "chunk_type": "pinpoint",
                     "content": doc.get("text", ""),
                     "full_content": "",
@@ -585,7 +662,7 @@ def fetch_pinpoint_docs(matched_topics: list[dict]) -> list[dict]:
             seen_parent_ids.add(cid)
             results.append(
                 {
-                    "source": "본문",
+                    "source": SRC_BODY,
                     "chunk_id": cid,
                     "parent_id": doc.get("parent_id"),
                     "category": doc.get("category", ""),
@@ -610,8 +687,12 @@ def fetch_pinpoint_docs(matched_topics: list[dict]) -> list[dict]:
 def search_all(query: str, limit: int = 5) -> list[dict]:
     """기본 하이브리드 검색 (Vector + BM25 + RRF) + QNA/감리사례 보조 추출."""
     query_vector = embed_query_sync(query)
-    v_results = _search_vector(query_vector, VECTOR_TOP_K)
-    k_results = _search_keyword(query, VECTOR_TOP_K // 2)
+    # Why: vector(MongoDB Atlas)와 keyword(로컬 BM25)는 완전 독립 → 병렬 실행
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        v_future = pool.submit(_search_vector, query_vector, VECTOR_TOP_K)
+        k_future = pool.submit(_search_keyword, query, VECTOR_TOP_K // 2)
+        v_results = v_future.result()
+        k_results = k_future.result()
     fused_docs = _fuse_rrf(v_results, k_results, final_k=limit)
     base_docs = _docs_from_fused(fused_docs)
 
@@ -620,14 +701,14 @@ def search_all(query: str, limit: int = 5) -> list[dict]:
     qna_raw = [
         d
         for d in v_results
-        if str(d.get("parent_id", "")).startswith("QNA-")
+        if str(d.get("parent_id", "")).startswith(DOC_PREFIX_QNA)
         and d.get("chunk_id") not in existing_ids
     ][:QNA_SUPPLEMENT]
 
     findings_raw = [
         d
         for d in v_results
-        if str(d.get("parent_id", "")).startswith(("FSS-", "KICPA-"))
+        if str(d.get("parent_id", "")).startswith(DOC_PREFIXES_FINDING)
         and d.get("chunk_id") not in existing_ids
     ][:FINDINGS_SUPPLEMENT]
 
@@ -635,11 +716,19 @@ def search_all(query: str, limit: int = 5) -> list[dict]:
     kai_raw = [
         d
         for d in v_results
-        if str(d.get("parent_id", "")).startswith("EDU-")
+        if str(d.get("parent_id", "")).startswith(DOC_PREFIX_EDU)
         and d.get("chunk_id") not in existing_ids
     ][:KAI_SUPPLEMENT]
 
-    supplement = _docs_from_fused(qna_raw + findings_raw + kai_raw)
+    # 적용사례IE 보조 추출 — 핀포인트 외 관련 사례 보충
+    ie_raw = [
+        d
+        for d in v_results
+        if d.get("category") == SRC_IE
+        and d.get("chunk_id") not in existing_ids
+    ][:IE_SUPPLEMENT]
+
+    supplement = _docs_from_fused(qna_raw + findings_raw + kai_raw + ie_raw)
     return base_docs + supplement
 
 
@@ -648,8 +737,11 @@ def search_all_hyde(query: str, limit: int = 5) -> list[dict]:
     hypothetical_doc = _generate_hypothetical_doc(query)
     hyde_vector = embed_query_sync(hypothetical_doc)
 
-    v_results = _search_vector(hyde_vector, VECTOR_TOP_K)
-    k_results = _search_keyword(query, VECTOR_TOP_K)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        v_future = pool.submit(_search_vector, hyde_vector, VECTOR_TOP_K)
+        k_future = pool.submit(_search_keyword, query, VECTOR_TOP_K)
+        v_results = v_future.result()
+        k_results = k_future.result()
     fused_docs = _fuse_rrf(v_results, k_results, final_k=limit)
     return _docs_from_fused(fused_docs)
 

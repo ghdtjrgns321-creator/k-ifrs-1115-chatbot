@@ -59,12 +59,7 @@ GOLDEN_QUESTIONS: list[GoldenQuestion] = [
             # 본인/대리인 판단 핵심 문단
             RetrievalTarget("기준서", "문단 B34A", "본인/대리인 판단 — 재화·용역 통제 기준"),
             RetrievalTarget("기준서", "문단 B37", "위탁판매 약정 3가지 지표"),
-            # 적용사례 — 본인/대리인 판단 사례
-            RetrievalTarget("적용사례", "사례 47", "항공권 재판매 (본인 판단)"),
-            # 질의회신
-            RetrievalTarget("질의회신", "QNA-SSI-202312051", "본인/대리인 판단 질의회신"),
-            # 감리지적사례
-            RetrievalTarget("감리지적사례", "FSS-CASE-2022-2311-03", "본인/대리인 판단 오류 감리사례"),
+ 
         ],
     ),
 

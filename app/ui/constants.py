@@ -9,6 +9,7 @@ import os
 API_BASE = os.getenv("API_BASE_URL", "http://localhost:8002")
 SEARCH_URL = f"{API_BASE}/search"
 CHAT_URL = f"{API_BASE}/chat"
+FEEDBACK_URL = f"{API_BASE}/feedback"
 API_TIMEOUT = 120  # 초
 
 # ── 키워드 칩 ────────────────────────────────────────────────────────────────────
@@ -29,14 +30,41 @@ KEYWORD_CHIPS = [
     "계약변경",  # 실무 계약 수정 시 빈번
 ]
 
+# ── 문서 source 문자열 상수 ───────────────────────────────────────────────────
+# Why: 10+ 파일에서 하드코딩되던 source 문자열을 중앙화하여
+#       한 곳 변경 시 나머지가 미변경되어 그룹핑/필터링 실패하는 문제 방지
+SRC_BODY = "본문"
+SRC_APPENDIX_B = "적용지침B"
+SRC_BC = "결론도출근거"
+SRC_DEFINITION = "용어정의"
+SRC_EFFECTIVE = "시행일"
+SRC_IE = "적용사례IE"
+SRC_QNA = "질의회신"
+SRC_QNA_SHORT = "QNA"  # retriever에서 classify_source가 반환하는 단축형
+SRC_FINDING = "감리사례"
+SRC_EDU = "교육자료"
+
+# ── Document ID 접두어 상수 ────────────────────────────────────────────────────
+# Why: retriever, db, evidence에서 parent_id 접두어 비교가 분산되어 있어 중앙화
+DOC_PREFIX_QNA = "QNA-"
+DOC_PREFIX_FSS = "FSS-"
+DOC_PREFIX_KICPA = "KICPA-"
+DOC_PREFIX_FSS_CASE = "FSS-CASE-"
+DOC_PREFIX_KICPA_CASE = "KICPA-CASE-"
+DOC_PREFIX_EDU = "EDU-"
+# 감리사례 접두어 튜플 (startswith에서 사용)
+DOC_PREFIXES_FINDING = (DOC_PREFIX_FSS, DOC_PREFIX_KICPA)
+DOC_PREFIXES_FINDING_CASE = (DOC_PREFIX_FSS_CASE, DOC_PREFIX_KICPA_CASE)
+
 # ── 문서 카테고리 → 아코디언 그룹 매핑 ──────────────────────────────────────────
 # source 값 하나가 여러 그룹에 속할 수 없도록 우선순위 순서로 정렬합니다.
 ACCORDION_GROUPS: dict[str, list[str]] = {
-    "📘 기준서 본문 및 적용지침": ["본문", "적용지침B", "용어정의", "시행일"],
-    "🔍 결론도출근거(BC)": ["결론도출근거"],
-    "📋 적용사례(IE)": ["적용사례IE"],
-    "💬 질의회신(QNA)": ["질의회신", "QNA"],
-    "🚨 감리지적사례": ["감리사례"],
+    "📘 기준서 본문 및 적용지침": [SRC_BODY, SRC_APPENDIX_B, SRC_DEFINITION, SRC_EFFECTIVE],
+    "🔍 결론도출근거(BC)": [SRC_BC],
+    "📋 적용사례(IE)": [SRC_IE],
+    "💬 질의회신(QNA)": [SRC_QNA, SRC_QNA_SHORT],
+    "🚨 감리지적사례": [SRC_FINDING],
+    "📖 한국회계기준원 교육자료": [SRC_EDU],
 }
 
 # ── RAG 노드 → 진행률 매핑 ──────────────────────────────────────────────────────
@@ -61,7 +89,7 @@ _STEP_LABELS: dict[str, str] = {
     "grade": "검색 결과 품질을 평가하고 있어요",
     "rewrite": "더 나은 검색을 위해 질문을 재구성하고 있어요",
     "hyde": "가상 문서를 생성하여 재검색하고 있어요",
-    "generate": "AI가 답변을 생성하고 있어요",
+    "generate": "AI가 답변을 생성하고 있어요 (약 15~20초 소요)",
     "format": "답변을 정리하고 있어요",
 }
 

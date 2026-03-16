@@ -14,9 +14,12 @@ import streamlit as st
 
 from app.ui.db import _validate_refs_against_db, fetch_parent_doc
 from app.ui.doc_helpers import (
+    _build_pdr_label,
     _build_self_ids,
     _format_pdr_content,
     _get_doc_para_num,
+    _get_parent_field,
+    _hierarchy_path,
     _ie_para_sort_key,
     _is_ie_doc,
     _normalize_case_group_title,
@@ -26,6 +29,7 @@ from app.ui.text import (
     _extract_para_refs,
     _normalize_doc_content,
     clean_text,
+    md_tables_to_html,
 )
 
 
@@ -77,23 +81,43 @@ def _render_para_chips(
 # ── Expander 라벨 생성 ────────────────────────────────────────────────────────
 
 
-def _make_label(doc: dict) -> str:
+def _make_label(doc: dict, cited_ids: set[str] | None = None) -> str:
     """깔끔한 expander 라벨을 생성합니다.
 
     결과: "문단 56 - 변동대가의 유의적 환원 가능성"
     title에 이미 문단 번호가 포함되면 중복 안 붙임.
+    cited_ids가 주어지고 해당 문단이 포함되면 :blue[**문단 XX**]로 강조합니다.
     """
     title = doc.get("title", "")
     para = _get_doc_para_num(doc)
     hierarchy = doc.get("hierarchy", "")
+    cgt = doc.get("case_group_title", "")
 
-    # title에 이미 문단 번호 포함 → title만 사용
+    # AI 답변에서 인용된 문단인지 확인
+    is_cited = bool(cited_ids and para and para in cited_ids)
+    para_tag = f":blue[**문단 {para}**]" if is_cited else f"문단 {para}"
+
+    # IE 사례 내 개별 문서: 사례 그룹 expander 안에서 보이므로 cgt 생략
+    # "문단 IE49 - 소프트웨어 라이선스와 서비스 구별" 형태로 짧게
+    if cgt and para:
+        # title에서 "[hierarchy] 문단 IEXXX - " 접두사 제거 → 순수 제목만 추출
+        clean = re.sub(r"^\[.*?\]\s*문단\s*\S+\s*-\s*", "", title) if title else ""
+        suffix = f" - {clean}" if clean and clean != title else ""
+        # clean이 안 되었으면 원본 title에서 문단 번호 중복 제거 시도
+        if not suffix and title and f"문단 {para}" not in title and cgt not in title:
+            suffix = f" - {title}"
+        return f"{para_tag}{suffix}"
+
+    # title에 이미 문단 번호 포함 → title만 사용 (인용 시 강조 교체)
     if title and para and (f"문단 {para}" in title or f"문단{para}" in title):
+        if is_cited:
+            label = title.replace(f"문단 {para}", f":blue[**문단 {para}**]")
+            return label.replace(f"문단{para}", f":blue[**문단 {para}**]")
         return title
     if para and title:
-        return f"문단 {para} - {title}"
+        return f"{para_tag} - {title}"
     if para:
-        return f"문단 {para}"
+        return para_tag
     if title:
         return title
     parts = [p.strip() for p in hierarchy.split(" > ") if p.strip()]
@@ -104,7 +128,10 @@ def _make_label(doc: dict) -> str:
 
 
 def _render_document_expander(
-    doc: dict, doc_index: int = 0, is_key_doc: bool = False
+    doc: dict,
+    doc_index: int = 0,
+    is_key_doc: bool = False,
+    cited_ids: set[str] | None = None,
 ) -> None:
     """개별 문서를 카드 expander로 렌더링합니다.
 
@@ -118,7 +145,7 @@ def _render_document_expander(
     full_text = doc.get("text") or doc.get("full_content") or doc.get("content", "")
     full_content = doc.get("full_content", "")
 
-    label = _make_label(doc)
+    label = _make_label(doc, cited_ids=cited_ids)
 
     with st.expander(_esc(label), expanded=False):
         # 문단 번호 배지 — topic_tabs.py의 _render_para_expander와 동일한 스타일
@@ -129,13 +156,17 @@ def _render_document_expander(
                 f'margin-bottom:0.5rem;">[문단 {html.escape(para_num)}]</span>',
                 unsafe_allow_html=True,
             )
-        # 본문 — 줄바꿈을 <br>로 변환하여 문단 구분 유지
+        # 본문 — 마크다운 테이블을 HTML로 먼저 변환 후 \n→<br>
+        # Why: \n→<br> 변환이 테이블 행 구분자를 파괴하므로 미리 HTML로 변환
         display_text = full_content if full_content else full_text
         normalized = _normalize_doc_content(display_text, source)
         cleaned = clean_text(normalized)
+        cleaned = md_tables_to_html(cleaned)
+        # \n+ → 단일 <br>로 통합 (이중 줄띄움 방지)
+        cleaned = re.sub(r"\n+", "<br>", cleaned)
         st.markdown(
             f'<div style="line-height:1.85; font-size:0.93em;">'
-            f"{cleaned.replace(chr(10), '<br>')}</div>",
+            f"{cleaned}</div>",
             unsafe_allow_html=True,
         )
 
@@ -154,71 +185,89 @@ def _render_pdr_expander(
     child_doc: dict,
     doc_index: int = 0,
     entry_desc: str = "",
+    cited_ids: set[str] | None = None,
 ) -> None:
-    """QNA/감리사례 — Parent 전문을 카드로 렌더링합니다."""
+    """QNA/감리사례 — Parent 전문을 카드로 렌더링합니다.
+
+    topic_tabs.py의 _render_qna_tab / _render_findings_tab과 동일한 구조:
+      라벨: _build_pdr_label(parent_id, title, content)
+      🏷️ 경로 태그 (_hierarchy_path)
+      desc blockquote (entry_desc)
+      content (_format_pdr_content + clean_text)
+      🔗 관련 조항 칩
+      📍 출처 경로 푸터
+    """
     parent_id = child_doc.get("parent_id", "")
-    hierarchy = child_doc.get("hierarchy", "") or ""
-    title = child_doc.get("title", "")
     chunk_id = child_doc.get("chunk_id", "")
 
     if not parent_id and chunk_id:
         parent_id = re.sub(r"_[QAS]$", "", chunk_id)
 
-    # [ID] 제목 형태로 표시하여 AI 답변의 인용과 쉽게 매칭
-    base = title if title else (hierarchy or chunk_id or "출처 없음")
-    label = f"[{parent_id}] {base}" if parent_id else base
+    # Parent 문서 조회 — 라벨 생성에 필요하므로 먼저 fetch
+    parent = fetch_parent_doc(parent_id) if parent_id else None
 
-    with st.expander(_esc(label), expanded=False):
-        # 요약 설명 (topic curation desc)
-        if entry_desc:
-            _desc = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", entry_desc)
-            _desc = re.sub(r"\. (?=[가-힣A-Z\[*])", ".<br>", _desc)
+    if parent:
+        raw_title = _get_parent_field(parent, "title", parent_id)
+        hierarchy = _get_parent_field(parent, "hierarchy", "")
+        content = parent.get("content", "")
+    else:
+        raw_title = child_doc.get("title", parent_id)
+        hierarchy = child_doc.get("hierarchy", "") or ""
+        content = child_doc.get("text") or child_doc.get("content", "")
+
+    # 라벨: [ID] 제목 — topic_tabs.py와 동일 로직
+    label = _build_pdr_label(parent_id, raw_title, content) if parent_id else raw_title
+    # AI 답변에서 인용된 ID이면 파란색 볼드로 강조
+    is_cited = bool(cited_ids and parent_id and parent_id in cited_ids)
+    if is_cited and parent_id:
+        label = label.replace(f"[{parent_id}]", f":blue[**[{parent_id}]**]")
+
+    with st.expander(f":material/description: {_esc(label)}", expanded=False):
+        # 🏷️ 경로 태그 — hierarchy에서 마지막 세그먼트(제목) 제거
+        hier_path = _hierarchy_path(hierarchy) if hierarchy else ""
+        if hier_path:
             st.markdown(
-                f'<div style="line-height:1.75; color:#475569; font-size:0.85em; '
-                f"padding:0.5rem 0.75rem; margin-bottom:0.5rem; "
-                f"border-left:3px solid #94A3B8; border-radius:4px; "
-                f'background:#F8FAFC;">{_desc}</div>',
+                f'<div style="font-size:0.78em; color:#6b7280; background:#f1f5f9; '
+                f"display:inline-block; padding:2px 10px; border-radius:12px; "
+                f'margin-bottom:0.5rem;">🏷️ {html.escape(hier_path)}</div>',
                 unsafe_allow_html=True,
             )
 
-        # Parent 전문
-        parent = fetch_parent_doc(parent_id) if parent_id else None
-        raw_content = ""
+        # desc blockquote — topic_tabs.py의 _desc_blockquote와 동일 스타일
+        if entry_desc:
+            _d = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", html.escape(entry_desc))
+            _d = re.sub(r"(?<=[가-힣])\.\s+", ".<br>", _d)
+            _d = _d.replace("\n", "<br>")
+            st.markdown(
+                f'<div style="line-height:1.75; color:#475569; font-size:0.88em; '
+                f"padding:0.5rem 0.75rem; background:#f8fafc; "
+                f'border-left:2px solid #cbd5e1; border-radius:2px;">'
+                f"{_d}</div>"
+                f'<hr style="border:none; border-top:1px solid #e2e8f0; margin:0.4rem 0 0.2rem;">',
+                unsafe_allow_html=True,
+            )
 
-        if parent:
-            content = parent.get("content", "")
-            if content:
-                raw_content = content
-                adjusted = _format_pdr_content(content)
-                cleaned = clean_text(adjusted)
-                st.markdown(
-                    f'<div style="line-height:1.85; font-size:0.93em;">'
-                    f"{cleaned.replace(chr(10), '<br>')}</div>",
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.info("내용을 불러올 수 없습니다.")
+        # 본문 content
+        if content:
+            adjusted = _format_pdr_content(content)
+            cleaned = clean_text(adjusted)
+            cleaned = md_tables_to_html(cleaned)
+            cleaned = re.sub(r"\n+", "<br>", cleaned)
+            st.markdown(
+                f'<div style="line-height:1.85; font-size:0.93em;">'
+                f"{cleaned}</div>",
+                unsafe_allow_html=True,
+            )
+            # 🔗 관련 조항 칩
+            _render_para_chips(content, label, doc_index)
         else:
-            fallback = child_doc.get("text") or child_doc.get("content", "")
-            if fallback:
-                raw_content = fallback
-                normalized = _normalize_doc_content(
-                    fallback, child_doc.get("source", "")
-                )
-                cleaned = clean_text(normalized)
-                st.markdown(
-                    f'<div style="line-height:1.85; font-size:0.93em;">'
-                    f"{cleaned.replace(chr(10), '<br>')}</div>",
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.info("내용을 불러올 수 없습니다.")
+            st.info("내용을 불러올 수 없습니다.")
 
-        if raw_content:
-            _render_para_chips(raw_content, label, doc_index)
-
-        # 출처 경로 — 유일한 1개
-        st.html(f'<div class="source-footer">📍 {html.escape(_esc(hierarchy))}</div>')
+        # 📍 출처 경로 푸터
+        st.html(
+            f'<div class="source-footer">📍 출처 경로: '
+            f"{html.escape(hierarchy)}</div>"
+        )
 
 
 # ── IE 적용사례 그룹핑 렌더링 ──────────────────────────────────────────────────

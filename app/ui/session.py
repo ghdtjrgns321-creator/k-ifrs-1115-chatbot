@@ -65,6 +65,14 @@ def _go_home() -> None:
         "follow_up_questions",
         "pending_followup",
         "is_situation",
+        # 캐시 키 — 이전 질문의 데이터가 새 질문에 잔류하는 것 방지
+        "_supp_by_group",
+        "_cited_docs_cache_key",
+        "_cited_docs_cache",
+        "_cited_pdr_cache_key",
+        "_cited_pdr_cache",
+        "_cited_ie_cache_key",
+        "_cited_ie_cache",
     ]
     for key in reset_keys:
         if key in st.session_state:

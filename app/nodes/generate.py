@@ -22,35 +22,6 @@ from app.services.query_mapping import INVERTED_MAPPING
 logger = logging.getLogger(__name__)
 
 
-# 직접 계산을 요청하는 명령형 패턴만 허용
-# Why: "산정하면", "계산해야 하나요" 같은 서술형은 회계 판단 질문인 경우가 많음
-# "계산해줘", "구해줘", "산출해줘" 같은 직접 명령만 calc 라우팅
-_CALC_COMMAND = re.compile(r"계산해|산정해|산출해|구해[줘봐]|얼마[인야냐]|몇.?[인야냐]")
-# 금액·퍼센트가 3개 이상 → 확실한 수치 계산 질문
-# Why: 2개는 맥락 설명("100억 매출, 10% 할인")만으로도 달성 → false positive
-_AMOUNT_PATTERN = re.compile(r"\d+[만억조]?\s*원|\d+\.?\d*\s*%")
-
-
-def _needs_calculation(matched_topics: list[dict], question: str) -> bool:
-    """계산 모델(gpt-4.1-mini) 라우팅 판단 — 3가지 조건 AND.
-
-    Why: 회계 판단 질문("볼륨 디스카운트 수익 인식은?")이 calc로 빠지면
-    Gemini의 깊은 추론 대신 gpt-mini의 얕은 답변이 나옴.
-    "직접 계산 명령 + 금액 3개 이상"일 때만 calc 라우팅.
-    """
-    has_formula = any(t.get("calculation_formula") for t in matched_topics)
-    if not has_formula:
-        return False
-    # 직접 계산 명령이 있어야 calc 라우팅
-    # Why: "산정하면 수익은?" = 판단 질문, "산정해줘" = 계산 요청
-    has_calc_command = bool(_CALC_COMMAND.search(question))
-    if not has_calc_command:
-        return False
-    # 금액 3개 이상이면 확실한 계산 질문
-    has_amounts = len(_AMOUNT_PATTERN.findall(question)) >= 3
-    return has_amounts
-
-
 def _get_last_human_message(messages: list[tuple[str, str]]) -> str:
     """대화 히스토리에서 마지막 사용자 메시지를 추출합니다."""
     for role, content in reversed(messages):
@@ -121,18 +92,21 @@ async def generate_answer(state: dict) -> dict:
     """최종 필터링된 문서를 바탕으로 답변을 생성합니다."""
     all_docs = state.get("relevant_docs", [])
 
-    # IE 적용사례 pinpoint은 LLM context에서 제외 — topics.json desc로 이미 커버
-    # Why: IE 원문이 GENERATE_DOC_LIMIT 슬롯을 차지하면 본문/적용지침이 밀려남
-    # UX3에는 relevant_docs 전체가 표시되므로 사용자는 원문을 볼 수 있음
-    docs_for_llm = [
-        d
-        for d in all_docs
-        if not (d.get("chunk_type") == "pinpoint" and d.get("category") == "적용사례IE")
-    ]
-    ie_skipped = len(all_docs) - len(docs_for_llm)
-    if ie_skipped:
-        logger.info("IE 적용사례 %d건 LLM context 제외 (desc로 커버)", ie_skipped)
-    docs = docs_for_llm
+    # IE 적용사례 pinpoint: calc 경로에서만 제외, 일반/상황 질문에서는 LLM에 전달
+    # Why: calc에서는 IE 원문이 GENERATE_DOC_LIMIT 슬롯을 차지해 산술 문맥이 밀려나지만,
+    #       일반/상황 질문에서는 IE 사례가 핵심 근거가 됨
+    use_calc = state.get("needs_calculation", False)
+    if use_calc:
+        docs = [
+            d
+            for d in all_docs
+            if not (d.get("chunk_type") == "pinpoint" and d.get("category") == "적용사례IE")
+        ]
+        ie_skipped = len(all_docs) - len(docs)
+        if ie_skipped:
+            logger.info("IE 적용사례 %d건 LLM context 제외 (calc 경로)", ie_skipped)
+    else:
+        docs = all_docs
     is_situation = state.get("is_situation", False)
     force_conclusion = state.get("force_conclusion", False)
     messages = state.get("messages", [])
@@ -168,7 +142,20 @@ async def generate_answer(state: dict) -> dict:
     # LLM 호출 — is_situation + force_conclusion에 따라 agent 분기
     try:
         if is_situation and not force_conclusion:
-            output = await _run_clarify(state, messages, context_str, confusion_point)
+            # clarify_agent 실패 시 generate_agent로 fallback
+            # Why: C1 — result_validator의 ModelRetry 소진(retries=2)이나
+            # Gemini API 일시 에러로 clarify 실패 시 답변 불가 방지
+            try:
+                output = await _run_clarify(
+                    state, messages, context_str, confusion_point
+                )
+            except Exception:
+                logger.warning(
+                    "clarify_agent 실패 → generate_agent fallback", exc_info=True
+                )
+                output = await _run_force_conclusion(
+                    state, docs, context_str, confusion_point
+                )
             is_conclusion = output.is_conclusion
             # CalcClarifyOutput에는 selected_branches 없음 (non-reasoning 모델용)
             selected_branches = getattr(output, "selected_branches", [])
@@ -192,6 +179,11 @@ async def generate_answer(state: dict) -> dict:
             r"\n*follow_up_questions\s*[:：]", answer, flags=re.IGNORECASE
         )[0].rstrip()
         follow_up_questions = output.follow_up_questions[:3]
+
+        # concluded 상태에서 follow_up 강제 제거 (LLM 생성과 무관하게)
+        # Why: C2 — Gemini thinking이 [결론 확인 모드] 프롬프트를 무시하고 follow_up 생성하는 문제 방지
+        if (state.get("checklist_state") or {}).get("concluded", False):
+            follow_up_questions = []
 
     except Exception:
         logger.error("generate_answer failed", exc_info=True)
@@ -221,20 +213,26 @@ async def _run_clarify(
     deps = ClarifyDeps(
         matched_topics=state.get("matched_topics", []),
         checklist_state=state.get("checklist_state"),
+        provided_info=state.get("provided_info", []),
+        messages=messages,  # critical_factors 매칭 범위 확대 (C1)
     )
     # 대화 히스토리 구성 — AI가 이미 물어본 내용을 반복하지 않도록
+    # Why: 최근 2턴만 사용 — checklist_state.checked_items에 이미 구조화된 Q&A가 있으므로
+    # 전체 히스토리 순회는 토큰 낭비 (3턴째 context 비대화 → 5~10초 절감)
+    recent = messages[-5:-1] if len(messages) > 5 else messages[:-1]
     history_lines = []
-    for role, content in messages[:-1]:  # 마지막(현재 질문)은 제외
+    for role, content in recent:
         prefix = "사용자" if role == "human" else "AI"
-        history_lines.append(f"{prefix}: {content[:300]}")
+        history_lines.append(f"{prefix}: {content[:150]}")
     conversation_history = "\n".join(history_lines) if history_lines else "(첫 질문)"
 
     # 사용자 원문 추출 — 혼동점 해소에서 사용자가 쓴 단어를 인용하기 위해
     original_message = _get_last_human_message(messages)
 
-    # calc 라우팅 판단을 context 구성 전에 수행
-    # Why: calc 경로에서는 topic_knowledge를 스킵하여 산술 집중도를 유지
-    use_calc = _needs_calculation(state.get("matched_topics", []), original_message)
+    # calc 라우팅: analyze_agent가 LLM으로 판단한 needs_calculation 사용
+    # Why: regex heuristic(_CALC_COMMAND + _AMOUNT_PATTERN)은 토픽 매칭 비결정성으로
+    # B1/B2에서 1/3만 calc 진입하는 문제 발생 → LLM 판단으로 전환 (14/14 정확도)
+    use_calc = state.get("needs_calculation", False)
 
     # topics.json desc 주입 — calc 경로에서는 스킵
     # Why: topic_knowledge(~2000자)가 gpt-4.1-mini의 산술 집중도를 분산시켜
@@ -261,14 +259,25 @@ async def _run_clarify(
     # Why: clarify_agent는 Gemini thinking용 — selected_branches 필수 + validator 재시도.
     # gpt-4.1-mini(non-reasoning)에서 포맷 FAIL + 산술 정확도 하락 발생.
     # calc_clarify_agent는 non-reasoning 전용 스키마/프롬프트로 이 문제 해결.
+    # 후속 턴(is_clarify_followup)은 thinking=low로 속도 최적화
+    # Why: 짧은 확인 답변에 깊은 추론 불필요 — 턴당 ~20초 절감
+    is_followup = state.get("is_clarify_followup", False)
+
     if use_calc:
         logger.info("clarify model=gpt-4.1-mini(calc) via calc_clarify_agent")
         result = await calc_clarify_agent.run(
             user_msg,
             model_settings={"temperature": 0.0},
         )
+    elif is_followup:
+        logger.info("clarify model=gemini-flash(thinking=low) [fast-path]")
+        result = await clarify_agent.run(
+            user_msg,
+            deps=deps,
+            model_settings={"google_thinking_config": {"thinking_level": "low"}},
+        )
     else:
-        logger.info("clarify model=gemini-flash(thinking=high)")
+        logger.info("clarify model=gemini-flash(thinking=medium)")
         result = await clarify_agent.run(user_msg, deps=deps)
     return result.output
 
@@ -291,9 +300,8 @@ async def _run_force_conclusion(
                 check_lines.append(f"- {c}")
         context_with_checks += "\n\n[사용자가 확인한 사항]\n" + "\n".join(check_lines)
 
-    # calc 라우팅 판단을 context 구성 전에 수행
-    question = _get_last_human_message(state.get("messages", []))
-    use_calc = _needs_calculation(state.get("matched_topics", []), question)
+    # calc 라우팅: analyze_agent가 LLM으로 판단한 needs_calculation 사용
+    use_calc = state.get("needs_calculation", False)
 
     # topics.json desc 주입 — calc 경로에서는 스킵 (산술 집중도 유지)
     if not use_calc:
@@ -319,6 +327,7 @@ async def _run_force_conclusion(
     )
 
     # 듀얼트랙: 계산 질문이면 gpt-4.1-mini, 아니면 Gemini Flash (기본값)
+    # force_conclusion은 항상 thinking=low — 충분한 맥락이 이미 확보된 상태
     if use_calc:
         logger.info("force_conclusion model=gpt-4.1-mini(calc)")
         result = await generate_agent.run(
@@ -327,8 +336,11 @@ async def _run_force_conclusion(
             model_settings={"temperature": 0.0},
         )
     else:
-        logger.info("force_conclusion model=gemini-flash(thinking=high)")
-        result = await generate_agent.run(user_msg)
+        logger.info("force_conclusion model=gemini-flash(thinking=low)")
+        result = await generate_agent.run(
+            user_msg,
+            model_settings={"google_thinking_config": {"thinking_level": "low"}},
+        )
     return result.output
 
 
@@ -346,9 +358,8 @@ async def _run_generate(
     )
 
     # 듀얼트랙 라우팅: 계산 → gpt-4.1-mini, simple → Gemini low, complex → Gemini high
-    question = state["standalone_query"]
-    use_calc = _needs_calculation(state.get("matched_topics", []), question)
-    model_tag = "gemini-flash(thinking=high)"  # 기본값 — 분기 추가 시 미선언 방지
+    use_calc = state.get("needs_calculation", False)
+    model_tag = "gemini-flash(thinking=medium)"  # 기본값 — 분기 추가 시 미선언 방지
     if use_calc:
         model_tag = "gpt-4.1-mini(calc)"
         result = await generate_agent.run(
@@ -363,7 +374,7 @@ async def _run_generate(
             model_settings={"google_thinking_config": {"thinking_level": "low"}},
         )
     else:
-        model_tag = "gemini-flash(thinking=high)"
+        model_tag = "gemini-flash(thinking=medium)"
         result = await generate_agent.run(user_msg)
 
     logger.info("generate model=%s, complexity=%s", model_tag, complexity)

@@ -3,7 +3,7 @@
 > **이 문서는 LLM에게 프로젝트 컨텍스트를 전달하기 위해 작성되었습니다.**
 > 기술 스택, 환경 변수, 실행 명령어, 코딩 컨벤션은 **CLAUDE.md** 참조.
 >
-> **최종 업데이트**: 2026-03-12 (Agent 8개, 토픽 26개, UI 21파일, preprocessing 13스크립트)
+> **최종 업데이트**: 2026-03-15 (Agent 8개, 토픽 31개, UI 21파일, preprocessing 14스크립트)
 
 ---
 
@@ -48,7 +48,7 @@
 
 - **홈**: 좌(5단계 수익인식 모형) / 우(후속 처리·특수 거래) — 8섹션 매트릭스
 - **토픽 브라우즈**: 4탭(본문·BC | 적용사례 | 질의회신 | 감리사례) + 관련 토픽 칩 + 하단 직접 질문
-- **근거 열람**: RAG 검색 결과 카테고리별 아코디언
+- **근거 열람**: RAG 검색 결과 카테고리별 아코디언 (본문·적용지침, BC, IE, QNA, 감리사례, KAI 교육자료)
 - **AI 답변**: Split View — 좌(근거 문서) + 우(AI 답변 + 꼬리질문)
 
 ---
@@ -78,8 +78,9 @@ k-ifrs-1115-chatbot/
 │   │   ├── 10-parse-curation.py   # ★ topic-curation.txt → topics.json 파싱
 │   │   ├── 11-fix-external-tables.py  # ★ 외부 테이블 보정
 │   │   ├── 12-summary-embed.py    # ★ QNA/감리/IE 서머리 임베딩
+│   │   ├── 13-topic-embed.py     # ★ 토픽 레벨 임베딩 (tree_matcher 3중 매칭용)
 │   │   ├── 99-verify-chunks.py    # 전수 검증
-│   │   └── _add_topics.py         # 토픽 메타데이터 일괄 추가
+│   │   └── _add_topics_data.py     # 토픽 분할 정적 데이터 (10-parse-curation.py에서 import)
 │   ├── test/
 │   │   ├── model_comparison/      # ★ 모델 비교 평가 (Gemini vs gpt, 듀얼트랙 검증)
 │   │   ├── preprocessing_test/    # 데이터 품질 테스트 (API, 중복, QNA 구조 등)
@@ -98,7 +99,7 @@ k-ifrs-1115-chatbot/
 │   │   ├── doc_helpers.py         # ★ 문서 처리 순수함수 (정렬, 필터링)
 │   │   ├── grouping.py            # ★ 문서 그룹핑 (소제목/소소제목 2단)
 │   │   ├── cross_links.py         # ★ 관련 토픽 pills (CSS 스타일)
-│   │   ├── constants.py           # ★ 키워드 칩, 아코디언 그룹, 진행률 매핑
+│   │   ├── constants.py           # ★ source 문자열/ID접두어 상수, 키워드 칩, 아코디언 그룹
 │   │   ├── db.py                  # MongoDB 조회 (PDR 라우팅 + cache)
 │   │   ├── client.py              # FastAPI 비동기 클라이언트
 │   │   ├── session.py             # Streamlit session_state 관리
@@ -159,6 +160,7 @@ pipeline.py — async generator, SSE yield
 
 - **2계층 검색**: 핀포인트(큐레이션 문서 직접 조회, 1순위) + 리트리버(Vector+BM25+RRF, 2순위)
 - **핀포인트 Fetch**: decision_tree의 precedents/red_flags에서 문서 ID 파싱 → MongoDB 직접 조회 (QNA/감리/IE/KAI)
+- **보충 추출**: 리트리버 벡터 TOP100 중 base_docs에 미포함된 QNA(15)/감리(15)/교육(5)/IE(10)를 소스별로 추가 추출 → AI 미인용 시 "참고 문서" 더보기(소스별 상위 3개)
 - **PDR**: QNA/감리/교육자료 Child 청크 → parent_id로 부모 원문 전체 조회
 - **듀얼트랙 모델 라우팅**: 계산→gpt-4.1-mini / simple→Gemini low / complex→Gemini high
 - **멀티턴 체크리스트**: clarify가 Dynamic 체크리스트 주입, Q&A 쌍 추적
@@ -190,7 +192,7 @@ pipeline.py — async generator, SSE yield
 
 | # | 방어 레이어 | 메커니즘 | 핵심 파일 |
 |---|------------|---------|----------|
-| 1 | **Domain 큐레이션** | MASTER_DECISION_TREES — 25개 토픽별 체크리스트 + 결론가이드 + 감리경고 + 선례 + 계산공식 | `decision_trees.py` |
+| 1 | **Domain 큐레이션** | MASTER_DECISION_TREES — 26개 토픽별 체크리스트 + 결론가이드 + 감리경고 + 선례 + 계산공식 | `decision_trees.py` |
 | 2 | **PydanticAI Structured Output** | ClarifyOutput — `selected_branches`(분기 선택 강제) + `cited_paragraphs`(인용 강제) | `agents.py` |
 | 3 | **result_validator** | 빈 인용/빈 분기 → `ModelRetry`로 LLM 재호출 (retries=2) | `agents.py` |
 | 4 | **reasoning_guard** | 프롬프트에 논리 뒤집음 방지 규칙, `[결론 가이드]`에 없는 분기 생성 금지 | `prompts.py` |
@@ -199,8 +201,8 @@ pipeline.py — async generator, SSE yield
 ### 데이터 플로우
 
 ```
-사용자 질문 → analyze_agent → match_topics()
-  → matched_topics
+사용자 질문 → analyze_agent → match_topics(query, keywords, topic_hints)
+  → matched_topics (키워드 매칭 + topic_hints 가산)
     ├→ checklist_text → system prompt (분기 강제)           ... 레이어 1
     ├→ precedents + formula → context 직접 주입             ... 레이어 5
     └→ clarify_agent → ClarifyOutput                       ... 레이어 2
@@ -217,9 +219,9 @@ pipeline.py — async generator, SSE yield
 
 `analyze` 노드가 추출한 키워드를 `MASTER_DECISION_TREES`의 `trigger_keywords`와 매칭하여, `is_situation=True`일 때 `clarify_agent`의 system prompt에 체크리스트 + 결론가이드를 동적 주입합니다.
 
-### MASTER_DECISION_TREES 스키마 (26개 토픽, 1182줄)
+### MASTER_DECISION_TREES 스키마 (26개 토픽, ~1200줄)
 
-26개 토픽: 계약의 식별, 계약의 결합, 계약변경, 수행의무 식별, 일련의 구별되는 재화나 용역, 변동대가, 유의적인 금융요소, 비현금 대가, 고객에게 지급할 대가, 거래가격 배분, 할인액의 배분, 변동대가의 배분, 기간에 걸쳐 vs 한 시점 인식, 진행률 측정, 거래가격의 후속 변동, 표시, 계약체결 증분원가, 계약이행원가, 본인 vs 대리인, 라이선싱, 반품권이 있는 판매, 보증, 통제 이전의 특수 형태, 고객의 권리 관련, 기타, 신종 비즈니스 및 복합 쟁점 (Gray Area)
+30개 토픽: 계약의 식별, 계약의 결합, 계약변경, 수행의무 식별, 일련의 구별되는 재화나 용역, 변동대가, 유의적인 금융요소, 비현금 대가, 고객에게 지급할 대가, 거래가격 배분, 할인액의 배분, 변동대가의 배분, 기간에 걸쳐 vs 한 시점 인식, 진행률 측정, 거래가격의 후속 변동, 표시(계약자산, 계약부채, 수취채권), 계약체결 증분원가, 계약이행원가, 본인 vs 대리인, 라이선싱, 반품권이 있는 판매, 보증(확신유형vs용역유형), 재매입약정(콜옵션/풋옵션/금융약정), 위탁약정, 미인도청구약정, 고객의 인수, 고객의 선택권(할인권/마일리지/포인트), 행사하지 않은 권리(낙전수익/상품권), 환불되지 않는 선수수수료(가입비/입회비), 기타
 
 ```python
 MASTER_DECISION_TREES = {
@@ -241,14 +243,38 @@ MASTER_DECISION_TREES = {
 
 ### 매칭 로직 (`tree_matcher.py`)
 
-`trigger_keywords` 양방향 부분 문자열 매칭 → score 내림차순 **상위 2개** 반환.
-반환값: `topic_name`, `checklist_text`(system prompt용), `precedents`(context 주입용), `red_flags`(핀포인트 fetch용), `judgment_goal`, `calculation_formula`, `score`
+3중 매칭 경로 결합 → score 내림차순 **상위 3개** 반환:
+1. **키워드 매칭**: `trigger_keywords` 양방향 부분 문자열 매칭 (search_keywords 2.0, query 1.0, 완전일치 +1.0)
+2. **topic_hints 가산**: analyze_agent가 거래 실질에서 추론한 토픽에 +3.0 가산
+3. **임베딩 유사도**: 토픽 임베딩(judgment_goal+keywords+summary)과 쿼리의 코사인 유사도 × 10.0 (임계값 0.28 이상)
+
+Why: 키워드+hints만으로는 일상 언어 질문("A→B→C 재판매")에서 토픽 매칭 실패.
+임베딩 유사도로 "재판매 구조" ↔ "본인 vs 대리인" 의미적 매칭 보완.
+26개 테스트에서 96% Hit Rate 달성 (ADR-23 참조).
+
+반환값: `topic_name`, `checklist_text`(system prompt용), `precedents`(context 주입용), `red_flags`(핀포인트 fetch용), `judgment_goal`, `calculation_formula`, `critical_factors`, `score`
 
 ---
 
 ## 7. 토픽 큐레이션 시스템
 
-25개 토픽에 대해 `topics.json`의 정적 데이터로 관련 문단을 즉시 조회 (RAG 검색 불필요).
+30개 토픽에 대해 `topics.json`의 정적 데이터로 관련 문단을 즉시 조회 (RAG 검색 불필요).
+
+### 전처리 파이프라인 (필수 순서)
+
+```
+10-parse-curation.py → topics.json (30개 토픽, 합산→개별 분할 자동 포함)
+    ↓
+12-summary-embed.py → summary-embeddings.json (QNA/감리 서머리 임베딩)
+    ↓
+13-topic-embed.py → topic-embeddings.json (토픽 레벨 임베딩)
+```
+
+**ADR-16**: `10-parse-curation.py`가 파싱 + 토픽 분할(`_split_merged_topics`)을 **단일 스크립트로** 처리. `_add_topics.py`는 별도 실행 불필요.
+
+**교차 검증**: `10-parse-curation.py` 실행 시 `verify_data_consistency()`가 자동 호출되어 topics.json ↔ summary-embeddings ↔ topic-embeddings 간 orphaned ID를 감지.
+
+**보존 로직**: 재실행 시 기존 topics.json의 `qna_descs`/`finding_descs`(수동 큐레이션)를 자동 보존. split 토픽의 desc도 보존.
 
 ```python
 TopicData = {
@@ -277,7 +303,7 @@ TopicData = {
 | `k-ifrs-1115-findings-parents` | 감리사례 원문 (PDR 부모) | `_id` |
 | `k-ifrs-1115-kai-parents` | KAI 교육자료 원문 (PDR 부모) | `_id` |
 
-ID 접두사 라우팅: `QNA-` → qna-parents, `FSS-`/`KICPA-` → findings-parents, `KAI-` → kai-parents
+ID 접두사 라우팅: `QNA-` → qna-parents, `FSS-`/`KICPA-` → findings-parents, `EDU-` → kai-parents
 
 ```python
 # MongoDB 청크 스키마
@@ -296,8 +322,9 @@ ID 접두사 라우팅: `QNA-` → qna-parents, `FSS-`/`KICPA-` → findings-par
 
 | 파일 | 용도 |
 |------|------|
-| `topics.json` | 26개 토픽별 본문·IE·QNA·감리사례 큐레이션 (3026줄) |
+| `topics.json` | 30개 토픽별 본문·IE·QNA·감리사례 큐레이션 (~4000줄) |
 | `summary-embeddings.json` | QNA/감리/IE 서머리 임베딩 벡터 (summary_matcher용) |
+| `topic-embeddings.json` | 31개 토픽 임베딩 벡터 (tree_matcher 3중 매칭용) |
 | `topic-curation.txt` | 큐레이션 원본 마크다운 (10-parse-curation.py 입력) |
 
 ---

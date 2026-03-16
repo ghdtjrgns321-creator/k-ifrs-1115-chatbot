@@ -36,8 +36,12 @@ async def lifespan(app: FastAPI):
 
     logger.info("BM25 인덱스 사전 로드 시작")
     loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, _build_bm25_index)
-    logger.info("BM25 인덱스 로드 완료, 서버 준비 완료")
+    try:
+        await loop.run_in_executor(None, _build_bm25_index)
+        logger.info("BM25 인덱스 로드 완료, 서버 준비 완료")
+    except Exception:
+        # Why: BM25 빌드 실패 시에도 vector search만으로 동작 가능 (graceful degradation)
+        logger.exception("BM25 인덱스 빌드 실패 — vector search만으로 동작합니다")
     yield
 
 

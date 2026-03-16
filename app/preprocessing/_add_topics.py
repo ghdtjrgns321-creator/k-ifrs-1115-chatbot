@@ -1,4 +1,8 @@
-"""topics.json에 7개 개별 토픽 추가, 2개 통합 토픽 제거"""
+"""[DEPRECATED] 10-parse-curation.py에 통합됨. 별도 실행 불필요.
+
+데이터는 _add_topics_data.py로 이관되었으며,
+10-parse-curation.py의 main()에서 _split_merged_topics()로 자동 호출됩니다.
+"""
 import json
 from pathlib import Path
 

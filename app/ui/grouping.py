@@ -16,6 +16,7 @@ from app.domain.topic_content_map import (
     get_section_for_para,
 )
 from app.ui.components import _get_doc_para_num, _render_document_expander
+from app.ui.constants import SRC_APPENDIX_B, SRC_BC, SRC_BODY
 from app.ui.text import _esc
 
 
@@ -34,14 +35,14 @@ def _extract_topic_key(doc: dict) -> tuple[str, str]:
     source = doc.get("source") or doc.get("category", "")
     parts = [p.strip() for p in hierarchy.split(" > ") if p.strip()]
 
-    if "결론도출근거" in source:
+    if SRC_BC in source:
         if len(parts) >= 4:
             return (parts[3], parts[4] if len(parts) >= 5 else "")
         elif len(parts) >= 3:
             return (parts[2], "")
         return ("", "")
 
-    if source == "적용지침B":
+    if source == SRC_APPENDIX_B:
         if len(parts) < 2:
             return ("", "")
         return (parts[1], parts[2] if len(parts) >= 3 else "")
@@ -56,7 +57,7 @@ def _get_parent_category(doc: dict) -> str:
     hierarchy = doc.get("hierarchy", "")
     source = doc.get("source") or doc.get("category", "")
     parts = [p.strip() for p in hierarchy.split(" > ") if p.strip()]
-    if source == "본문" and len(parts) >= 2:
+    if source == SRC_BODY and len(parts) >= 2:
         return parts[1]
     if "결론도출근거" in source and len(parts) >= 3:
         return parts[2]
@@ -116,9 +117,9 @@ def _hierarchy_minor_fallback(doc: dict) -> str:
     source = doc.get("source") or doc.get("category", "")
     parts = [p.strip() for p in hierarchy.split(" > ") if p.strip()]
     # 본문: parts[2]가 소제목 (이미 major로 사용됨) → 그 자체를 fallback
-    if source == "본문" and len(parts) >= 3:
+    if source == SRC_BODY and len(parts) >= 3:
         return parts[2]
-    if source == "적용지침B" and len(parts) >= 2:
+    if source == SRC_APPENDIX_B and len(parts) >= 2:
         return parts[1]
     return ""
 
@@ -168,7 +169,18 @@ def _fill_missing_docs(
     """섹션에 등록된 문단 중 items에 없는 것을 DB에서 보충합니다."""
     from app.ui.db import fetch_docs_by_para_ids
 
+    # sec_title 정확 매칭 시도 → 실패하면 첫 문단의 topics.json 매핑으로 fallback
+    # Why: hierarchy 소소제목("지금까지 수행을 완료한 부분에 대한 지급청구권")과
+    #       topics.json title("지급청구권 (문단 B9~B13)")이 불일치하는 경우 대응
     all_paras = _get_section_paras(sec_title)
+    if not all_paras:
+        for _, doc in items:
+            para = _get_doc_para_num(doc)
+            if para:
+                canonical_title, _ = get_section_for_para(para)
+                if canonical_title:
+                    all_paras = _get_section_paras(canonical_title)
+                    break
     if not all_paras:
         return items
 
@@ -204,8 +216,13 @@ def _fill_missing_docs(
     return sorted(new_items, key=lambda x: _para_sort_key(x[1]))
 
 
-def _build_para_label(items: list[tuple[int, dict]]) -> str:
-    """items의 문단번호를 [문단 9, 문단 15] 형태로 생성합니다."""
+def _build_para_label(
+    items: list[tuple[int, dict]], cited_ids: set[str] | None = None
+) -> str:
+    """items의 문단번호를 [문단 9, 문단 15] 형태로 생성합니다.
+
+    cited_ids가 주어지면, AI 답변에서 인용된 문단은 :blue[**문단 XX**]로 강조합니다.
+    """
     paras = []
     for _, doc in items:
         p = _get_doc_para_num(doc)
@@ -213,27 +230,38 @@ def _build_para_label(items: list[tuple[int, dict]]) -> str:
             paras.append(p)
     if not paras:
         return ""
-    return "[" + ", ".join(f"문단 {p}" for p in paras) + "]"
+    parts = []
+    for p in paras:
+        if cited_ids and p in cited_ids:
+            parts.append(f":blue[**문단 {p}**]")
+        else:
+            parts.append(f"문단 {p}")
+    return "[" + ", ".join(parts) + "]"
 
 
-def _render_section_expander(sec_title: str, items: list[tuple[int, dict]]) -> None:
+def _render_section_expander(
+    sec_title: str,
+    items: list[tuple[int, dict]],
+    cited_ids: set[str] | None = None,
+) -> None:
     """섹션별 expander + desc blockquote + 누락 문단 보충 렌더링."""
     # topics.json에 등록된 문단 중 빠진 것 보충
     items = _fill_missing_docs(sec_title, items)
 
     title = _clean_title(sec_title)
-    para_label = _build_para_label(items)
+    para_label = _build_para_label(items, cited_ids=cited_ids)
     label = f"{title} {para_label}" if para_label else title
 
     with st.expander(_esc(label), expanded=False):
         _desc_blockquote(_find_group_desc(items))
         for idx, doc in items:
-            _render_document_expander(doc, doc_index=idx)
+            _render_document_expander(doc, doc_index=idx, cited_ids=cited_ids)
 
 
 def _render_sub_grouped(
     items: list[tuple[str, int, dict]],
-    allowed_sources: tuple[str, ...] = ("본문", "적용지침B"),
+    allowed_sources: tuple[str, ...] = (SRC_BODY, SRC_APPENDIX_B),
+    cited_ids: set[str] | None = None,
 ) -> None:
     """소소제목별 expander + retrieved 문서만 렌더링."""
     sub_groups: dict[str, list[tuple[int, dict]]] = {}
@@ -256,30 +284,31 @@ def _render_sub_grouped(
     # 소소제목이 없으면 flat 표시
     if not sub_groups:
         for idx, doc in sub_ungrouped:
-            _render_document_expander(doc, doc_index=idx)
+            _render_document_expander(doc, doc_index=idx, cited_ids=cited_ids)
         return
 
     # 진짜 미분류 문서 flat 표시
     for idx, doc in sub_ungrouped:
-        _render_document_expander(doc, doc_index=idx)
+        _render_document_expander(doc, doc_index=idx, cited_ids=cited_ids)
 
     # 소소제목 → expander (2번째 계층)
     for minor_title, minor_items in sorted(
         sub_groups.items(),
         key=lambda kv: _para_sort_key(kv[1][0][1]),
     ):
-        _render_section_expander(minor_title, minor_items)
+        _render_section_expander(minor_title, minor_items, cited_ids=cited_ids)
 
 
 def _render_major_section(
     major_title: str,
     items: list[tuple[str, int, dict]],
-    allowed_sources: tuple[str, ...] = ("본문", "적용지침B"),
+    allowed_sources: tuple[str, ...] = (SRC_BODY, SRC_APPENDIX_B),
+    cited_ids: set[str] | None = None,
 ) -> None:
     """소제목 헤더 + 소소제목 렌더링."""
     title = _clean_title(major_title)
     st.markdown(f"📌 **{_esc(title)}**")
-    _render_sub_grouped(items, allowed_sources=allowed_sources)
+    _render_sub_grouped(items, allowed_sources=allowed_sources, cited_ids=cited_ids)
 
 
 # ── 진입점 ────────────────────────────────────────────────────────────────────
@@ -290,7 +319,8 @@ def _render_topic_grouped_docs(
     idx_offset: int = 0,
     score_ordered: list[dict] | None = None,
     search_query: str = "",
-    allowed_sources: tuple[str, ...] = ("본문", "적용지침B"),
+    allowed_sources: tuple[str, ...] = (SRC_BODY, SRC_APPENDIX_B),
+    cited_ids: set[str] | None = None,
 ) -> None:
     """소제목 > 소소제목 2단계 그룹핑 렌더링."""
     grouped: dict[str, list[tuple[str, int, dict]]] = {}
@@ -305,7 +335,7 @@ def _render_topic_grouped_docs(
 
     if not grouped:
         for idx, doc in ungrouped:
-            _render_document_expander(doc, doc_index=idx)
+            _render_document_expander(doc, doc_index=idx, cited_ids=cited_ids)
         return
 
     # score 1위 소제목 → 메인
@@ -355,16 +385,26 @@ def _render_topic_grouped_docs(
                     top_items.append((minor if minor else m, idx, doc))
 
     # 메인 렌더링
-    _render_major_section(top_major, top_items, allowed_sources=allowed_sources)
+    _render_major_section(
+        top_major, top_items, allowed_sources=allowed_sources, cited_ids=cited_ids
+    )
 
     # 나머지 토픽도 전부 flat 표시 (더보기 접기 없음)
     for major_title, items in sorted(
         grouped.items(),
         key=lambda kv: _para_sort_key(kv[1][0][2]),
     ):
-        _render_major_section(major_title, items, allowed_sources=allowed_sources)
+        _render_major_section(
+            major_title, items, allowed_sources=allowed_sources, cited_ids=cited_ids
+        )
 
+    # hierarchy 구조가 짧아 소제목 추출이 안 된 문단 — 섹션 재그룹핑 시도
     if ungrouped:
-        st.markdown("📖 **한국회계기준원 교육자료**")
-        for idx, doc in ungrouped:
-            _render_document_expander(doc, doc_index=idx)
+        sec_groups, truly_ungrouped = _regroup_by_section(ungrouped)
+        for sec_title, sec_items in sorted(
+            sec_groups.items(),
+            key=lambda kv: _para_sort_key(kv[1][0][1]),
+        ):
+            _render_section_expander(sec_title, sec_items, cited_ids=cited_ids)
+        for idx, doc in truly_ungrouped:
+            _render_document_expander(doc, doc_index=idx, cited_ids=cited_ids)
