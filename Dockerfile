@@ -22,6 +22,9 @@ COPY --from=builder /app/.venv /app/.venv
 # 소스코드 복사
 COPY app/ ./app/
 
+# 런타임 데이터: topics.json (topic_content_map.py가 로드)
+COPY data/topic-curation/topics.json ./data/topic-curation/topics.json
+
 # .venv/bin을 PATH 앞에 추가하여 가상환경 활성화 효과
 ENV PATH="/app/.venv/bin:$PATH"
 # Python 출력 버퍼링 비활성화 (Docker 로그 실시간 확인용)
