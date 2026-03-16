@@ -1,7 +1,7 @@
 [project]
 name = "k-ifrs-1115-chatbot"
 version = "0.1.0"
-description = "Add your description here"
+description = "K-IFRS 1115 전문 Q&A 챗봇 — Hybrid RAG + PydanticAI 기반 회계기준서 검색·답변 시스템"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
