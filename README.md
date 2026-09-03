@@ -1,6 +1,6 @@
 # K-IFRS 1115호 챗봇
 
-> **라이브 데모 배포 → http://134.185.104.224:8501/** (Oracle Cloud 배포, Streamlit)
+> **라이브 데모 배포 → Oracle Claude 서버 문제로 일시 중단
 
 ---
 
