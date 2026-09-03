@@ -1,5 +1,9 @@
 # K-IFRS 1115호 챗봇
 
+[![라이브 데모](https://img.shields.io/badge/🔗_라이브_데모-Oracle_Cloud_배포-2ea44f?style=for-the-badge)](http://134.185.104.224:8501/)
+
+> **라이브 데모 배포 → http://134.185.104.224:8501/** (Oracle Cloud 배포, Streamlit)
+
 ---
 
 ## 개요
